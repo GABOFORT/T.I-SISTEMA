@@ -1,0 +1,186 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T.I Sistema — Panel de Control</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="s-icon">⚙️</div>
+      <div>
+        <div class="s-name">T.I SISTEMA</div>
+        <div class="s-sub">Panel de Control</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">General</div>
+      <a href="#" class="nav-item active">
+        <span class="n-icon">🏠</span> Inicio
+      </a>
+      <a href="#" class="nav-item">
+        <span class="n-icon">📊</span> Reportes
+      </a>
+      <div class="nav-section-title">Soporte T.I</div>
+      <a href="{% url 'equipos_lista' %}" class="nav-item">
+        <span class="n-icon">🖥️</span> Equipos
+      </a>
+      <a href="#" class="nav-item">
+        <span class="n-icon">🔧</span> Mantenimiento
+      </a>
+      <a href="{% url 'tickets_lista' %}" class="nav-item">
+        <span class="n-icon">🎫</span> Tickets
+      </a>
+      <div class="nav-section-title">Administración</div>
+      <a href="{% url 'usuarios_lista' %}" class="nav-item">
+        <span class="n-icon">👥</span> Usuarios
+      </a>
+      <a href="{% url 'configuracion' %}" class="nav-item">
+        <span class="n-icon">⚙️</span> Configuración
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">
+          {{ username|first|upper }}
+        </div>
+        <div class="user-details">
+          <div class="u-name">{{ nombre }} {{ apellido }}</div>
+          <div class="u-role">{{ rol }}</div>
+        </div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-logout">
+        <span></span> Cerrar sesión
+      </a>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <span class="topbar-title">Panel de Control</span>
+      <div class="topbar-right">
+        <span class="topbar-time" id="clock">--:--:--</span>
+        <span class="role-tag role-usuario">{{ rol }}</span>
+      </div>
+    </header>
+    <div class="page-body">
+      <div class="welcome-banner">
+        <div class="wb-icon">🖥️</div>
+        <div>
+          <h2>Bienvenido, {{ nombre }} {{ apellidoPaterno }} {{ apellidoMaterno }}</h2>
+          <p>
+            Sistema de Tecnología e Infraestructura &mdash;
+            Acceso como <strong>{{ rol }}</strong>
+          </p>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon ic-blue">🎫</div>
+          <div>
+            <div class="stat-val">3</div>
+            <div class="stat-lbl">Tickets Abiertos</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon ic-cyan">🖥️</div>
+          <div>
+            <div class="stat-val">—</div>
+            <div class="stat-lbl">Equipos Activos</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon ic-green">✅</div>
+          <div>
+            <div class="stat-val">—</div>
+            <div class="stat-lbl">Tareas Completadas</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon ic-yellow">⚠️</div>
+          <div>
+            <div class="stat-val">—</div>
+            <div class="stat-lbl">Alertas</div>
+          </div>
+        </div>
+      </div>
+      <div class="cards-row">
+        <div class="panel-card">
+          <h3>📡 Estado de Servicios</h3>
+          <ul class="status-list">
+            <li>
+              <span class="dot dot-green"></span>
+              Red Corporativa
+              <span class="s-right">Operativo</span>
+            </li>
+            <li>
+              <span class="dot dot-green"></span>
+              Servidor Principal
+              <span class="s-right">Operativo</span>
+            </li>
+            <li>
+              <span class="dot dot-yellow"></span>
+              Backup Nocturno
+              <span class="s-right">En espera</span>
+            </li>
+            <li>
+              <span class="dot dot-red"></span>
+              VPN Remota
+              <span class="s-right">Inactivo</span>
+            </li>
+          </ul>
+        </div>
+        <div class="panel-card">
+          <h3>🎫 Mis Últimos Tickets</h3>
+          <ul class="status-list">
+            <li>
+              <span class="dot dot-yellow"></span>
+              Problema con impresora
+              <span class="s-right">Pendiente</span>
+            </li>
+            <li>
+              <span class="dot dot-green"></span>
+              Acceso a carpeta compartida
+              <span class="s-right">Resuelto</span>
+            </li>
+            <li>
+              <span class="dot dot-red"></span>
+              PC no enciende — Área Admin
+              <span class="s-right">Urgente</span>
+            </li>
+          </ul>
+        </div>
+        <div class="panel-card">
+          <h3>📋 Actividad Reciente</h3>
+          <ul class="status-list">
+            <li>
+              <span class="dot dot-green"></span>
+              Sesión iniciada — {{ username }}
+              <span class="s-right">Ahora</span>
+            </li>
+            <li>
+              <span class="dot dot-green"></span>
+              Sistema en línea
+              <span class="s-right">Hoy</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const el = document.getElementById('clock');
+    function tick() {
+      el.textContent = new Date().toLocaleTimeString('es-MX');
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+</body>
+</html>

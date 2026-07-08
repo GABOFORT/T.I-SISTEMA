@@ -1,0 +1,696 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T.I Sistema — Configuración</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <style>
+    .cfg-section{margin-bottom:30px}
+    .cfg-sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+    .cfg-sec-title{font-size:.98rem;font-weight:700;display:flex;align-items:center;gap:8px}
+    .cfg-sec-sub{font-size:.76rem;color:var(--text-muted);margin-top:2px}
+    .cfg-divider{border:none;border-top:1px solid var(--border);margin:4px 0 26px}
+    .tbl-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    .tbl-wrap table{width:100%;border-collapse:collapse}
+    .tbl-wrap thead{background:linear-gradient(90deg,rgba(0,112,243,.08),rgba(0,212,255,.04));border-bottom:1px solid var(--border)}
+    .tbl-wrap th{padding:12px 15px;font-size:.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);text-align:left;white-space:nowrap}
+    .tbl-wrap th.tc{text-align:center}
+    .tbl-wrap tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s}
+    .tbl-wrap tbody tr:hover{background:rgba(0,212,255,.04)}
+    .tbl-wrap tbody tr:last-child{border-bottom:none}
+    .tbl-wrap td{padding:11px 15px;font-size:.86rem;vertical-align:middle}
+    .tbl-wrap td.tc{text-align:center}
+    .tbl-footer{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border);font-size:.78rem;color:var(--text-muted)}
+    .id-mono{font-family:monospace;font-size:.78rem;font-weight:700;color:var(--text-muted)}
+    .eb-act{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:rgba(0,229,160,.1);color:#34d399;border:1px solid rgba(0,229,160,.3)}
+    .eb-ina{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:rgba(255,77,109,.08);color:#f87171;border:1px solid rgba(255,77,109,.2)}
+    .perm-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+    .nivel-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:rgba(255,204,0,.1);color:#fbbf24;border:1px solid rgba(255,204,0,.22)}
+    .count-badge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.2);border-radius:20px;font-size:.72rem;font-weight:700;color:var(--accent);padding:0 8px}
+    .perm-icon{font-size:.85rem}
+    .pi-yes{color:#34d399}
+    .pi-no{color:rgba(255,255,255,.15)}
+    .actions{display:flex;gap:5px;align-items:center;justify-content:center}
+    .ab{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;font-size:.82rem;cursor:pointer;border:1px solid transparent;transition:background .15s}
+    .ab-edit{background:rgba(255,204,0,.1);border-color:rgba(255,204,0,.2)}
+    .ab-edit:hover{background:rgba(255,204,0,.2)}
+    .btn-nuevo{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.86rem;font-weight:600;cursor:pointer;box-shadow:0 3px 12px rgba(0,112,243,.35);transition:opacity .15s,transform .1s;white-space:nowrap}
+    .btn-nuevo:hover{opacity:.9;transform:translateY(-1px)}
+    .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:10px}
+    .empty-icon{font-size:2rem;opacity:.3}
+    .empty-txt{font-size:.82rem;color:var(--text-muted);text-align:center;line-height:1.7}
+    .prox-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.22);border-radius:20px;padding:3px 12px;font-size:.72rem;font-weight:700;color:#c084fc;letter-spacing:.5px}
+    .btn-ghost-dis{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:.84rem;cursor:not-allowed;opacity:.45}
+    .notif-ok{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:10px;padding:13px 18px;margin-bottom:16px;color:#34d399;font-size:.88rem;font-weight:600}
+    .notif-err{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:13px 18px;margin-bottom:16px;color:#f87171;font-size:.88rem;font-weight:600}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+    .modal-overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;width:100%;max-width:560px;overflow:visible;box-shadow:0 24px 60px rgba(0,0,0,.6),var(--glow);transform:translateY(20px) scale(.97);transition:transform .25s}
+    .modal-overlay.open .modal{transform:translateY(0) scale(1)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);border-radius:18px 18px 0 0;background:var(--bg-card)}
+    .modal-header h2{font-size:1rem;font-weight:700}
+    .modal-close{width:32px;height:32px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:background .15s}
+    .modal-close:hover{background:rgba(255,77,109,.15);color:var(--danger)}
+    .modal-body{padding:22px 24px}
+    .modal-footer{display:flex;gap:10px;justify-content:flex-end;padding:16px 24px;border-top:1px solid var(--border);border-radius:0 0 18px 18px;background:var(--bg-card)}
+    .btn-cancel{padding:9px 18px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:9px;color:var(--text-muted);font-size:.88rem;cursor:pointer;transition:background .15s}
+    .btn-cancel:hover{background:rgba(255,255,255,.09)}
+    .btn-save{padding:9px 22px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:9px;color:#fff;font-size:.88rem;font-weight:600;cursor:pointer;box-shadow:0 3px 12px rgba(0,112,243,.3)}
+    .m-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+    .m-field{display:flex;flex-direction:column;gap:7px}
+    .m-field.full{grid-column:1/-1}
+    .m-field label{font-size:.7rem;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)}
+    .req{color:var(--danger)}
+    .m-field input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none;font-family:inherit;transition:border .2s}
+    .m-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .m-field input.error{border-color:var(--danger)!important}
+    .m-field input[readonly]{opacity:.5;pointer-events:none}
+    .csel{position:relative;width:100%}
+    .csel-trigger{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;cursor:pointer;user-select:none;transition:border .2s}
+    .csel.open .csel-trigger{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .csel.error .csel-trigger{border-color:var(--danger)!important}
+    .csel-placeholder{color:var(--text-muted)}
+    .csel-arrow{font-size:.72rem;color:var(--text-muted);transition:transform .2s}
+    .csel.open .csel-arrow{transform:rotate(180deg)}
+    .csel-dropdown{position:absolute;top:calc(100% + 5px);left:0;right:0;background:#111827;border:1px solid rgba(0,212,255,.2);border-radius:10px;overflow-y:auto;max-height:200px;z-index:9999;box-shadow:0 12px 30px rgba(0,0,0,.5);display:none}
+    .csel.open .csel-dropdown{display:block}
+    .csel-option{padding:10px 14px;font-size:.88rem;cursor:pointer;color:var(--text-muted);transition:background .12s}
+    .csel-option:hover{background:rgba(0,212,255,.1);color:var(--text)}
+    .csel-option.selected{background:rgba(0,112,243,.2);color:var(--accent);font-weight:600}
+    .csel-option.placeholder-opt{font-style:italic}
+    .perm-checks{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+    .perm-chk-item{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:9px;padding:10px 12px;cursor:pointer;transition:border .15s;user-select:none}
+    .perm-chk-item:hover{border-color:rgba(0,212,255,.3)}
+    .perm-chk-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+    .perm-chk-label{font-size:.82rem;font-weight:600}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="s-icon">⚙️</div>
+      <div><div class="s-name">T.I SISTEMA</div><div class="s-sub">Panel de Control</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">General</div>
+      <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
+      <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
+      <div class="nav-section-title">Soporte T.I</div>
+      <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
+      <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
+      <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <div class="nav-section-title">Administración</div>
+      <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
+      <a href="{% url 'configuracion' %}" class="nav-item active"><span class="n-icon">⚙️</span> Configuración</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">{{ username|first|upper }}</div>
+        <div class="user-details">
+          <div class="u-name">{{ nombre }} {{ apellido }}</div>
+          <div class="u-role">{{ rol }}</div>
+        </div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <span class="topbar-title">Configuración del Sistema</span>
+      <div class="topbar-right">
+        <span class="topbar-time" id="clock">--:--:--</span>
+        <span class="role-tag role-usuario">{{ rol }}</span>
+      </div>
+    </header>
+    <div class="page-body">
+      {% if messages %}
+        {% for msg in messages %}
+          {% if msg.tags == 'error' %}<div class="notif-err">⚠ {{ msg }}</div>
+          {% else %}<div class="notif-ok">✅ {{ msg }}</div>{% endif %}
+        {% endfor %}
+      {% endif %}
+      <div class="cfg-section">
+        <div class="cfg-sec-hdr">
+          <div>
+            <div class="cfg-sec-title">Niveles de Acceso</div>
+            <div class="cfg-sec-sub">Define qué acciones puede realizar cada nivel (consultar, crear, modificar, eliminar, exportar, importar)</div>
+          </div>
+          <button class="btn-nuevo" onclick="abrirNivel()">＋ Nuevo Nivel</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Descripción</th>
+                <th>Estatus</th>
+                <th class="tc">Consultar</th>
+                <th class="tc">Crear</th>
+                <th class="tc">Modificar</th>
+                <th class="tc">Eliminar</th>
+                <th class="tc">Exportar</th>
+                <th class="tc">Importar</th>
+                <th class="tc">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for n in niveles %}
+              <tr>
+                <td class="id-mono">{{ n.id_nivel }}</td>
+                <td style="font-weight:600">{{ n.descripcion }}</td>
+                <td>{% if n.estatus == 'ACT' %}<span class="eb-act">● ACTIVO</span>{% else %}<span class="eb-ina">● INACTIVO</span>{% endif %}</td>
+                <td class="tc"><span class="perm-icon {% if n.consultar %}pi-yes{% else %}pi-no{% endif %}">{% if n.consultar %}✔{% else %}✘{% endif %}</span></td>
+                <td class="tc"><span class="perm-icon {% if n.crear %}pi-yes{% else %}pi-no{% endif %}">{% if n.crear %}✔{% else %}✘{% endif %}</span></td>
+                <td class="tc"><span class="perm-icon {% if n.modificar %}pi-yes{% else %}pi-no{% endif %}">{% if n.modificar %}✔{% else %}✘{% endif %}</span></td>
+                <td class="tc"><span class="perm-icon {% if n.eliminar %}pi-yes{% else %}pi-no{% endif %}">{% if n.eliminar %}✔{% else %}✘{% endif %}</span></td>
+                <td class="tc"><span class="perm-icon {% if n.exportar %}pi-yes{% else %}pi-no{% endif %}">{% if n.exportar %}✔{% else %}✘{% endif %}</span></td>
+                <td class="tc"><span class="perm-icon {% if n.importar %}pi-yes{% else %}pi-no{% endif %}">{% if n.importar %}✔{% else %}✘{% endif %}</span></td>
+                <td class="tc">
+                  <div class="actions">
+                    <button class="ab ab-edit" title="Editar"
+                      data-id="{{ n.id_nivel }}"
+                      data-desc="{{ n.descripcion }}"
+                      data-est="{{ n.estatus }}"
+                      data-cons="{{ n.consultar }}"
+                      data-cre="{{ n.crear }}"
+                      data-mod="{{ n.modificar }}"
+                      data-eli="{{ n.eliminar }}"
+                      data-exp="{{ n.exportar }}"
+                      data-imp="{{ n.importar }}"
+                      onclick="editarNivelBtn(this)">✏️</button>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="10"><div class="empty-state"><div class="empty-icon">🛡️</div><div class="empty-txt">Sin niveles registrados.<br>Agrega el primero con <strong>＋ Nuevo Nivel</strong>.</div></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="tbl-footer"><span>{{ niveles|length }} nivel{% if niveles|length != 1 %}es{% endif %}</span></div>
+        </div>
+      </div>
+      <hr class="cfg-divider">
+      <div class="cfg-section">
+        <div class="cfg-sec-hdr">
+          <div>
+            <div class="cfg-sec-title">Permisos</div>
+            <div class="cfg-sec-sub">Agrupa un nombre de permiso con un nivel de acceso; este permiso se asigna a los roles</div>
+          </div>
+          <button class="btn-nuevo" onclick="abrirPermiso()">＋ Nuevo Permiso</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Descripción</th>
+                <th>Estatus</th>
+                <th>Nivel Asignado</th>
+                <th class="tc">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in permisos %}
+              <tr>
+                <td class="id-mono">{{ p.id_permiso }}</td>
+                <td style="font-weight:600">{{ p.descripcion }}</td>
+                <td>{% if p.estatus == 'ACT' %}<span class="eb-act">● ACTIVO</span>{% else %}<span class="eb-ina">● INACTIVO</span>{% endif %}</td>
+                <td>{% if p.nivel_desc %}<span class="nivel-badge">{{ p.id_nivel }} — {{ p.nivel_desc }}</span>{% else %}<span style="color:var(--text-muted);font-size:.8rem">—</span>{% endif %}</td>
+                <td class="tc">
+                  <div class="actions">
+                    <button class="ab ab-edit" title="Editar"
+                      data-id="{{ p.id_permiso }}"
+                      data-desc="{{ p.descripcion }}"
+                      data-est="{{ p.estatus }}"
+                      data-nivel="{{ p.id_nivel|default:'' }}"
+                      onclick="editarPermisoBtn(this)">✏️</button>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔑</div><div class="empty-txt">Sin permisos registrados.<br>Agrega el primero con <strong>＋ Nuevo Permiso</strong>.</div></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="tbl-footer"><span>{{ permisos|length }} permiso{% if permisos|length != 1 %}s{% endif %}</span></div>
+        </div>
+      </div>
+      <hr class="cfg-divider">
+      <div class="cfg-section">
+        <div class="cfg-sec-hdr">
+          <div>
+            <div class="cfg-sec-title">Roles</div>
+            <div class="cfg-sec-sub">Cada rol tiene un permiso asignado; ese permiso define qué puede hacer el usuario con ese rol</div>
+          </div>
+          <button class="btn-nuevo" onclick="abrirRol()">＋ Nuevo Rol</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Descripción</th>
+                <th>Estatus</th>
+                <th>Permiso Asignado</th>
+                <th class="tc">Usuarios</th>
+                <th class="tc">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in roles %}
+              <tr>
+                <td class="id-mono">{{ r.id_rol }}</td>
+                <td style="font-weight:600">{{ r.descripcion }}</td>
+                <td>{% if r.estatus == 'ACT' %}<span class="eb-act">● ACTIVO</span>{% else %}<span class="eb-ina">● INACTIVO</span>{% endif %}</td>
+                <td>{% if r.permiso_desc %}<span class="perm-badge">{{ r.id_permiso }} — {{ r.permiso_desc }}</span>{% else %}<span style="color:var(--text-muted);font-size:.8rem">—</span>{% endif %}</td>
+                <td class="tc"><span class="count-badge">{{ r.total_usuarios }}</span></td>
+                <td class="tc">
+                  <div class="actions">
+                    <button class="ab ab-edit" title="Editar"
+                      data-id="{{ r.id_rol }}"
+                      data-desc="{{ r.descripcion }}"
+                      data-est="{{ r.estatus }}"
+                      data-permiso="{{ r.id_permiso|default:'' }}"
+                      onclick="editarRolBtn(this)">✏️</button>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👔</div><div class="empty-txt">Sin roles registrados.<br>Agrega el primero con <strong>＋ Nuevo Rol</strong>.</div></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="tbl-footer"><span>{{ roles|length }} rol{% if roles|length != 1 %}es{% endif %}</span></div>
+        </div>
+      </div>
+      <hr class="cfg-divider">
+      <div class="cfg-section">
+        <div class="cfg-sec-hdr">
+          <div>
+            <div class="cfg-sec-title">Historial de Cambios de Equipos</div>
+            <div class="cfg-sec-sub">Registro automático de todas las modificaciones realizadas a los equipos</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="prox-badge">Próximamente</span>
+            <button class="btn-ghost-dis">⬇ Exportar</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha / Hora</th><th>Equipo ID</th><th>Tipo de Cambio</th><th>Descripción</th><th>Realizado por</th></tr></thead>
+            <tbody><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-txt">El historial se registrará automáticamente cada vez que<br>se cree o modifique un equipo.<br><br><span class="prox-badge">Módulo en desarrollo</span></div></div></td></tr></tbody>
+          </table>
+          <div class="tbl-footer"><span>0 registros</span></div>
+        </div>
+      </div>
+      <div class="cfg-section">
+        <div class="cfg-sec-hdr">
+          <div>
+            <div class="cfg-sec-title">Bitácora de Accesos</div>
+            <div class="cfg-sec-sub">Registro de inicios y cierres de sesión de todos los usuarios del sistema</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="prox-badge">Próximamente</span>
+            <button class="btn-ghost-dis">⬇ Exportar</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha / Hora</th><th>Usuario</th><th>Nombre</th><th>Acción</th><th>IP / Dispositivo</th></tr></thead>
+            <tbody><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔐</div><div class="empty-txt">La bitácora registrará automáticamente cada inicio<br>y cierre de sesión de los usuarios.<br><br><span class="prox-badge">Módulo en desarrollo</span></div></div></td></tr></tbody>
+          </table>
+          <div class="tbl-footer"><span>0 registros</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="ovNivel" onclick="cerrarFuera(event,'ovNivel')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="tituloNivel">Nuevo Nivel de Acceso</h2>
+      <button class="modal-close" onclick="cerrar('ovNivel')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="formNivel" method="POST" action="{% url 'nivel_guardar' %}" data-crear-url="{% url 'nivel_guardar' %}">
+        {% csrf_token %}
+        <div class="m-grid" style="margin-bottom:14px">
+          <div class="m-field">
+            <label>ID Nivel <span class="req">*</span></label>
+            <input type="text" name="id_nivel" id="fIdNivel" placeholder="CONT1" maxlength="5"
+                   oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+          </div>
+          <div class="m-field">
+            <label>Descripción <span class="req">*</span></label>
+            <input type="text" name="descripcion" id="fDescNivel" placeholder="CONTROL TOTAL" maxlength="100"
+                   oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="m-field">
+            <label>Estatus <span class="req">*</span></label>
+            <div class="csel" id="cselNivelEst">
+              <div class="csel-trigger" onclick="toggleCsel('cselNivelEst')">
+                <span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow">▾</span>
+              </div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                <div class="csel-option" data-value="ACT">Activo</div>
+                <div class="csel-option" data-value="INA">Inactivo</div>
+              </div>
+              <input type="hidden" name="estatus" id="fEstNivel">
+            </div>
+          </div>
+        </div>
+        <div class="m-field full" style="margin-bottom:6px">
+          <label>Acciones permitidas <span class="req">*</span></label>
+        </div>
+        <div class="perm-checks">
+          <label class="perm-chk-item">
+            <input type="checkbox" name="consultar" id="chkConsultar"><span class="perm-chk-label">👁 Consultar</span>
+          </label>
+          <label class="perm-chk-item">
+            <input type="checkbox" name="crear" id="chkCrear"><span class="perm-chk-label">＋ Crear</span>
+          </label>
+          <label class="perm-chk-item">
+            <input type="checkbox" name="modificar" id="chkModificar"><span class="perm-chk-label">✏ Modificar</span>
+          </label>
+          <label class="perm-chk-item">
+            <input type="checkbox" name="eliminar" id="chkEliminar"><span class="perm-chk-label">🗑 Eliminar</span>
+          </label>
+          <label class="perm-chk-item">
+            <input type="checkbox" name="exportar" id="chkExportar"><span class="perm-chk-label">⬇ Exportar</span>
+          </label>
+          <label class="perm-chk-item">
+            <input type="checkbox" name="importar" id="chkImportar"><span class="perm-chk-label">⬆ Importar</span>
+          </label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="cerrar('ovNivel')">Cancelar</button>
+      <button class="btn-save" onclick="guardarNivel()">Guardar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="ovPermiso" onclick="cerrarFuera(event,'ovPermiso')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="tituloPermiso">Nuevo Permiso</h2>
+      <button class="modal-close" onclick="cerrar('ovPermiso')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="formPermiso" method="POST" action="{% url 'permiso_guardar' %}" data-crear-url="{% url 'permiso_guardar' %}">
+        {% csrf_token %}
+        <div class="m-grid">
+          <div class="m-field">
+            <label>ID Permiso <span class="req">*</span></label>
+            <input type="text" name="id_permiso" id="fIdPermiso" placeholder="ADMI1" maxlength="5"
+                   oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+          </div>
+          <div class="m-field">
+            <label>Descripción <span class="req">*</span></label>
+            <input type="text" name="descripcion" id="fDescPermiso" placeholder="ADMINISTRADOR" maxlength="100"
+                   oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="m-field">
+            <label>Estatus <span class="req">*</span></label>
+            <div class="csel" id="cselPermisoEst">
+              <div class="csel-trigger" onclick="toggleCsel('cselPermisoEst')">
+                <span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow">▾</span>
+              </div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                <div class="csel-option" data-value="ACT">Activo</div>
+                <div class="csel-option" data-value="INA">Inactivo</div>
+              </div>
+              <input type="hidden" name="estatus" id="fEstPermiso">
+            </div>
+          </div>
+          <div class="m-field">
+            <label>Nivel de Acceso <span class="req">*</span></label>
+            <div class="csel" id="cselPermisoNivel">
+              <div class="csel-trigger" onclick="toggleCsel('cselPermisoNivel')">
+                <span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow">▾</span>
+              </div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                {% for n in niveles %}
+                <div class="csel-option" data-value="{{ n.id_nivel }}">{{ n.id_nivel }} — {{ n.descripcion }}</div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="id_nivel" id="fNivelPermiso">
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="cerrar('ovPermiso')">Cancelar</button>
+      <button class="btn-save" onclick="guardarPermiso()">Guardar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="ovRol" onclick="cerrarFuera(event,'ovRol')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="tituloRol">Nuevo Rol</h2>
+      <button class="modal-close" onclick="cerrar('ovRol')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="formRol" method="POST" action="{% url 'rol_guardar' %}" data-crear-url="{% url 'rol_guardar' %}">
+        {% csrf_token %}
+        <div class="m-grid">
+          <div class="m-field">
+            <label>ID Rol <span class="req">*</span></label>
+            <input type="text" name="id_rol" id="fIdRol" placeholder="TI1" maxlength="5"
+                   oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+          </div>
+          <div class="m-field">
+            <label>Descripción <span class="req">*</span></label>
+            <input type="text" name="descripcion" id="fDescRol" placeholder="T.I" maxlength="100"
+                   oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="m-field">
+            <label>Estatus <span class="req">*</span></label>
+            <div class="csel" id="cselRolEst">
+              <div class="csel-trigger" onclick="toggleCsel('cselRolEst')">
+                <span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow">▾</span>
+              </div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                <div class="csel-option" data-value="ACT">Activo</div>
+                <div class="csel-option" data-value="INA">Inactivo</div>
+              </div>
+              <input type="hidden" name="estatus" id="fEstRol">
+            </div>
+          </div>
+          <div class="m-field">
+            <label>Permiso Asignado <span class="req">*</span></label>
+            <div class="csel" id="cselRolPermiso">
+              <div class="csel-trigger" onclick="toggleCsel('cselRolPermiso')">
+                <span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow">▾</span>
+              </div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                {% for p in permisos %}
+                <div class="csel-option" data-value="{{ p.id_permiso }}">{{ p.id_permiso }} — {{ p.descripcion }}</div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="id_permiso" id="fPermisoRol">
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="cerrar('ovRol')">Cancelar</button>
+      <button class="btn-save" onclick="guardarRol()">Guardar</button>
+    </div>
+  </div>
+</div>
+<script>
+  const elClk = document.getElementById('clock');
+  function tick(){ elClk.textContent = new Date().toLocaleTimeString('es-MX'); }
+  tick(); setInterval(tick, 1000);
+  function toggleCsel(id){
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('open');
+    document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
+    if(!isOpen) el.classList.add('open');
+  }
+  function initCsel(id){
+    document.getElementById(id).querySelectorAll('.csel-option').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        const csel = document.getElementById(id);
+        const val = opt.dataset.value;
+        csel.querySelector('.csel-val').textContent = opt.textContent;
+        csel.querySelector('.csel-val').classList.toggle('csel-placeholder', !val);
+        csel.querySelector('input[type=hidden]').value = val;
+        csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+        opt.classList.add('selected');
+        csel.classList.remove('open','error');
+      });
+    });
+  }
+  function setCsel(id, value){
+    const csel = document.getElementById(id);
+    if(!csel) return;
+    const opt = csel.querySelector(`[data-value="${value}"]`);
+    if(!opt) return;
+    csel.querySelector('.csel-val').textContent = opt.textContent;
+    csel.querySelector('.csel-val').classList.remove('csel-placeholder');
+    csel.querySelector('input[type=hidden]').value = value;
+    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    opt.classList.add('selected');
+    csel.classList.remove('error');
+  }
+  function resetCsel(id){
+    const csel = document.getElementById(id);
+    if(!csel) return;
+    csel.querySelector('.csel-val').textContent = '— Selecciona —';
+    csel.querySelector('.csel-val').classList.add('csel-placeholder');
+    csel.querySelector('input[type=hidden]').value = '';
+    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    csel.classList.remove('error','open');
+  }
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.csel')) document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
+  });
+  ['cselNivelEst','cselPermisoEst','cselPermisoNivel','cselRolEst','cselRolPermiso'].forEach(initCsel);
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(o=>o.classList.remove('open')); });
+  function abrir(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+  function cerrar(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+  function cerrarFuera(e,id){ if(e.target===document.getElementById(id)) cerrar(id); }
+  function abrirNivel(){
+    document.getElementById('tituloNivel').textContent = 'Nuevo Nivel de Acceso';
+    const form = document.getElementById('formNivel');
+    form.action = form.dataset.crearUrl;
+    document.getElementById('fIdNivel').value = '';
+    document.getElementById('fIdNivel').readOnly = false;
+    document.getElementById('fIdNivel').style.opacity = '';
+    document.getElementById('fDescNivel').value = '';
+    resetCsel('cselNivelEst');
+    ['chkConsultar','chkCrear','chkModificar','chkEliminar','chkExportar','chkImportar'].forEach(id=>{ document.getElementById(id).checked=false; });
+    abrir('ovNivel');
+  }
+  function editarNivelBtn(btn){
+    const d = btn.dataset;
+    editarNivel(d.id, d.desc, d.est, d.cons, d.cre, d.mod, d.eli, d.exp, d.imp);
+  }
+  function editarPermisoBtn(btn){
+    const d = btn.dataset;
+    editarPermiso(d.id, d.desc, d.est, d.nivel);
+  }
+  function editarRolBtn(btn){
+    const d = btn.dataset;
+    editarRol(d.id, d.desc, d.est, d.permiso);
+  }
+
+  function editarNivel(id,desc,est,cons,cre,mod,eli,exp,imp){
+    document.getElementById('tituloNivel').textContent = 'Editar Nivel — ' + id;
+    const form = document.getElementById('formNivel');
+    form.action = `/configuracion/niveles/actualizar/${id}/`;
+    const idField = document.getElementById('fIdNivel');
+    idField.value = id; idField.readOnly = true; idField.style.opacity = '.5';
+    document.getElementById('fDescNivel').value = desc;
+    setCsel('cselNivelEst', est);
+    document.getElementById('chkConsultar').checked = !!cons;
+    document.getElementById('chkCrear').checked     = !!cre;
+    document.getElementById('chkModificar').checked = !!mod;
+    document.getElementById('chkEliminar').checked  = !!eli;
+    document.getElementById('chkExportar').checked  = !!exp;
+    document.getElementById('chkImportar').checked  = !!imp;
+    abrir('ovNivel');
+  }
+  function guardarNivel(){
+    const id   = document.getElementById('fIdNivel').value.trim();
+    const desc = document.getElementById('fDescNivel').value.trim();
+    const est  = document.getElementById('fEstNivel').value;
+    let ok = true;
+    [['fIdNivel',id],['fDescNivel',desc]].forEach(([fid,val])=>{
+      document.getElementById(fid).classList.toggle('error', !val);
+      if(!val) ok=false;
+    });
+    if(!est){ document.getElementById('cselNivelEst').classList.add('error'); ok=false; }
+    if(!ok) return;
+    document.getElementById('formNivel').submit();
+  }
+  function abrirPermiso(){
+    document.getElementById('tituloPermiso').textContent = 'Nuevo Permiso';
+    const form = document.getElementById('formPermiso');
+    form.action = form.dataset.crearUrl;
+    document.getElementById('fIdPermiso').value = '';
+    document.getElementById('fIdPermiso').readOnly = false;
+    document.getElementById('fIdPermiso').style.opacity = '';
+    document.getElementById('fDescPermiso').value = '';
+    resetCsel('cselPermisoEst'); resetCsel('cselPermisoNivel');
+    abrir('ovPermiso');
+  }
+  function editarPermiso(id,desc,est,nivel){
+    document.getElementById('tituloPermiso').textContent = 'Editar Permiso — ' + id;
+    const form = document.getElementById('formPermiso');
+    form.action = `/configuracion/permisos/actualizar/${id}/`;
+    const idField = document.getElementById('fIdPermiso');
+    idField.value = id; idField.readOnly = true; idField.style.opacity = '.5';
+    document.getElementById('fDescPermiso').value = desc;
+    setCsel('cselPermisoEst', est);
+    if(nivel) setCsel('cselPermisoNivel', nivel);
+    abrir('ovPermiso');
+  }
+  function guardarPermiso(){
+    const id    = document.getElementById('fIdPermiso').value.trim();
+    const desc  = document.getElementById('fDescPermiso').value.trim();
+    const est   = document.getElementById('fEstPermiso').value;
+    const nivel = document.getElementById('fNivelPermiso').value;
+    let ok = true;
+    [['fIdPermiso',id],['fDescPermiso',desc]].forEach(([fid,val])=>{
+      document.getElementById(fid).classList.toggle('error', !val);
+      if(!val) ok=false;
+    });
+    if(!est){   document.getElementById('cselPermisoEst').classList.add('error');   ok=false; }
+    if(!nivel){ document.getElementById('cselPermisoNivel').classList.add('error'); ok=false; }
+    if(!ok) return;
+    document.getElementById('formPermiso').submit();
+  }
+  function abrirRol(){
+    document.getElementById('tituloRol').textContent = 'Nuevo Rol';
+    const form = document.getElementById('formRol');
+    form.action = form.dataset.crearUrl;
+    document.getElementById('fIdRol').value = '';
+    document.getElementById('fIdRol').readOnly = false;
+    document.getElementById('fIdRol').style.opacity = '';
+    document.getElementById('fDescRol').value = '';
+    resetCsel('cselRolEst'); resetCsel('cselRolPermiso');
+    abrir('ovRol');
+  }
+  function editarRol(id,desc,est,permiso){
+    document.getElementById('tituloRol').textContent = 'Editar Rol — ' + id;
+    const form = document.getElementById('formRol');
+    form.action = `/configuracion/roles/actualizar/${id}/`;
+    const idField = document.getElementById('fIdRol');
+    idField.value = id; idField.readOnly = true; idField.style.opacity = '.5';
+    document.getElementById('fDescRol').value = desc;
+    setCsel('cselRolEst', est);
+    if(permiso) setCsel('cselRolPermiso', permiso);
+    abrir('ovRol');
+  }
+  function guardarRol(){
+    const id      = document.getElementById('fIdRol').value.trim();
+    const desc    = document.getElementById('fDescRol').value.trim();
+    const est     = document.getElementById('fEstRol').value;
+    const permiso = document.getElementById('fPermisoRol').value;
+    let ok = true;
+    [['fIdRol',id],['fDescRol',desc]].forEach(([fid,val])=>{
+      document.getElementById(fid).classList.toggle('error', !val);
+      if(!val) ok=false;
+    });
+    if(!est){     document.getElementById('cselRolEst').classList.add('error');     ok=false; }
+    if(!permiso){ document.getElementById('cselRolPermiso').classList.add('error'); ok=false; }
+    if(!ok) return;
+    document.getElementById('formRol').submit();
+  }
+</script>
+</body>
+</html>

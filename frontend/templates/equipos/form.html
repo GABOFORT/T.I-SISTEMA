@@ -1,0 +1,229 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T.I Sistema — {% if editando %}Editar{% else %}Nuevo{% endif %} Equipo</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="s-icon">⚙️</div>
+      <div>
+        <div class="s-name">T.I SISTEMA</div>
+        <div class="s-sub">Panel de Control</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">General</div>
+      <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
+      <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
+      <div class="nav-section-title">Soporte T.I</div>
+      <a href="{% url 'equipos_lista' %}" class="nav-item active"><span class="n-icon">🖥️</span> Equipos</a>
+      <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
+      <a href="#" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <div class="nav-section-title">Administración</div>
+      <a href="#" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
+      <a href="#" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">{{ username|first|upper }}</div>
+        <div class="user-details">
+          <div class="u-name">{{ nombre }} {{ apellido }}</div>
+          <div class="u-role">{{ rol }}</div>
+        </div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <span class="topbar-title">
+        {% if editando %}✏️ Editar Equipo{% else %}➕ Nuevo Equipo{% endif %}
+      </span>
+      <div class="topbar-right">
+        <span class="topbar-time" id="clock">--:--:--</span>
+        <span class="role-tag role-usuario">{{ rol }}</span>
+      </div>
+    </header>
+    <div class="page-body">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">{% if editando %}Editar Equipo — {{ id_equipo }}{% else %}Dar de Alta Equipo{% endif %}</h2>
+          <p class="section-sub">Complete los campos según el tipo de equipo</p>
+        </div>
+        <a href="{% url 'equipos_lista' %}" class="btn-secondary">← Regresar</a>
+      </div>
+      <form method="POST" id="equipoForm">
+        {% csrf_token %}
+        <div class="form-card">
+          <div class="form-card-title">📋 Información General</div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>ID Equipo <span class="req">*</span></label>
+              <input type="text" name="id_equipo" placeholder="EQ001" maxlength="5"
+                     {% if editando %}value="{{ id_equipo }}" readonly{% endif %}>
+            </div>
+            <div class="form-field">
+              <label>Nombre del Equipo <span class="req">*</span></label>
+              <input type="text" name="nombre_equipo" placeholder="LAP-VENTAS-01" maxlength="10">
+            </div>
+            <div class="form-field">
+              <label>Tipo de Equipo <span class="req">*</span></label>
+              <select name="tipo_equipo" id="tipoEquipo">
+                <option value="">— Selecciona —</option>
+                <option value="Laptop">💻 Laptop</option>
+                <option value="PC">🖥 PC</option>
+                <option value="Servidor">🗄 Servidor</option>
+                <option value="Impresora">🖨 Impresora</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Marca <span class="req">*</span></label>
+              <input type="text" name="marca" placeholder="Dell, HP, Lenovo..." maxlength="100">
+            </div>
+            <div class="form-field">
+              <label>Modelo <span class="req">*</span></label>
+              <input type="text" name="modelo" placeholder="Inspiron 15 3000" maxlength="200">
+            </div>
+            <div class="form-field">
+              <label>Número de Serie Equipo</label>
+              <input type="text" name="numero_serie_equipo" placeholder="SN-XXXXXXXXX" maxlength="100">
+            </div>
+            <div class="form-field">
+              <label>Estatus <span class="req">*</span></label>
+              <select name="estatus">
+                <option value="ACT">✅ ACT — Activo</option>
+                <option value="INA">❌ INA — Inactivo</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="form-card" id="sec-laptop" style="display:none;">
+          <div class="form-card-title">🔋 Datos de Laptop</div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>¿Batería Integrada?</label>
+              <select name="bateria_integrada" id="bateriaIntegrada">
+                <option value="">— Selecciona —</option>
+                <option value="true">Sí — Integrada</option>
+                <option value="false">No — Extraíble</option>
+              </select>
+            </div>
+            <div class="form-field" id="campo-serie-bateria" style="display:none;">
+              <label>Número de Serie Batería</label>
+              <input type="text" name="numero_serie_bateria" placeholder="BAT-XXXXXXXXX" maxlength="100">
+            </div>
+            <div class="form-field">
+              <label>Número de Serie Cargador</label>
+              <input type="text" name="numero_serie_cargador" placeholder="CAR-XXXXXXXXX" maxlength="100">
+            </div>
+          </div>
+        </div>
+        <div class="form-card" id="sec-specs" style="display:none;">
+          <div class="form-card-title">⚙️ Especificaciones Técnicas</div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>Procesador</label>
+              <input type="text" name="procesador" placeholder="Intel Core i5-12th, Ryzen 5..." maxlength="100">
+            </div>
+            <div class="form-field">
+              <label>RAM</label>
+              <input type="text" name="ram" placeholder="8 GB, 16 GB..." maxlength="100">
+            </div>
+            <div class="form-field">
+              <label>Almacenamiento</label>
+              <input type="text" name="almacenamiento" placeholder="512 GB SSD, 1 TB HDD..." maxlength="100">
+            </div>
+            <div class="form-field">
+              <label>Sistema Operativo</label>
+              <input type="text" name="sistema_operativo" placeholder="Windows 11 Pro, Ubuntu 22..." maxlength="100">
+            </div>
+            <div class="form-field" id="campo-office">
+              <label>Versión Office</label>
+              <input type="text" name="version_office" placeholder="Microsoft 365, Office 2021..." maxlength="100">
+            </div>
+          </div>
+        </div>
+        <div class="form-card" id="sec-asignacion" style="display:none;">
+          <div class="form-card-title">👤 Asignación</div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>Usuario Asignado</label>
+              <input type="text" name="usuario_asignado" placeholder="ID del usuario (ej: U0001)" maxlength="5">
+            </div>
+            <div class="form-field">
+              <label>Área Asignada</label>
+              <input type="text" name="area_asignada" placeholder="Ventas, Administración..." maxlength="100">
+            </div>
+            <div class="form-field">
+              <label>Fecha de Asignación</label>
+              <input type="date" name="fecha_asignacion">
+            </div>
+          </div>
+        </div>
+        <div class="form-card">
+          <div class="form-card-title">📝 Observaciones y Notas</div>
+          <div class="form-grid form-grid-full">
+            <div class="form-field form-field-full">
+              <label>Observación del Equipo</label>
+              <textarea name="observacion_equipo" rows="3" placeholder="Estado físico, daños, detalles importantes..." maxlength="500"></textarea>
+            </div>
+            <div class="form-field form-field-full">
+              <label>Nota interna</label>
+              <textarea name="nota_equipo" rows="3" placeholder="Notas adicionales para el área de T.I..." maxlength="500"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <a href="{% url 'equipos_lista' %}" class="btn-secondary">Cancelar</a>
+          <button type="submit" class="btn-primary">
+            {% if editando %}Guardar Cambios{% else %}Dar de Alta{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  const el = document.getElementById('clock');
+  function tick() { el.textContent = new Date().toLocaleTimeString('es-MX'); }
+  tick(); setInterval(tick, 1000);
+  const tipoSelect = document.getElementById('tipoEquipo');
+  const batSelect  = document.getElementById('bateriaIntegrada');
+  function actualizarCampos() {
+    const tipo = tipoSelect.value;
+    const secLaptop    = document.getElementById('sec-laptop');
+    const secSpecs     = document.getElementById('sec-specs');
+    const secAsignacion= document.getElementById('sec-asignacion');
+    const campoOffice  = document.getElementById('campo-office');
+    secLaptop.style.display     = 'none';
+    secSpecs.style.display      = 'none';
+    secAsignacion.style.display = 'none';
+    campoOffice.style.display   = 'block';
+    if (tipo === 'Laptop') {
+      secLaptop.style.display     = 'block';
+      secSpecs.style.display      = 'block';
+      secAsignacion.style.display = 'block';
+    } else if (tipo === 'PC') {
+      secSpecs.style.display      = 'block';
+      secAsignacion.style.display = 'block';
+    } else if (tipo === 'Servidor') {
+      secSpecs.style.display    = 'block';
+      campoOffice.style.display = 'none';
+    }
+  }
+  function actualizarBateria() {
+    const val = batSelect.value;
+    const campo = document.getElementById('campo-serie-bateria');
+    campo.style.display = (val === 'false') ? 'block' : 'none';
+  }
+  tipoSelect.addEventListener('change', actualizarCampos);
+  batSelect.addEventListener('change', actualizarBateria);
+</script>
+</body>
+</html>

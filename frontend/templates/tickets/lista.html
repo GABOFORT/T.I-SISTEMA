@@ -1,0 +1,736 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T.I Sistema — Tickets</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <style>
+    .tk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+    .tk-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:14px;transition:border-color .2s,box-shadow .2s}
+    .tk-stat:hover{border-color:var(--accent);box-shadow:var(--glow-sm)}
+    .tk-stat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
+    .tk-stat-val{font-size:1.5rem;font-weight:800;line-height:1}
+    .tk-stat-lbl{font-size:.7rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+    .tk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .tk-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
+    .search-wrap{position:relative;flex:1;min-width:200px}
+    .search-wrap input{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px 9px 38px;color:var(--text);font-size:.87rem;outline:none;transition:border .2s;box-sizing:border-box}
+    .search-wrap input:focus{border-color:var(--accent)}
+    .search-wrap input::placeholder{color:var(--text-muted)}
+    .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.9rem;pointer-events:none}
+    .tk-select{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--text);font-size:.87rem;outline:none;cursor:pointer;transition:border .2s;appearance:none;-webkit-appearance:none;color-scheme:dark}
+    .tk-select:focus{border-color:var(--accent)}
+    .btn-nuevo{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 4px 15px rgba(0,112,243,.4);transition:opacity .2s,transform .1s}
+    .btn-nuevo:hover{opacity:.9;transform:translateY(-1px)}
+    .tbl-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    .tbl-wrap table{width:100%;border-collapse:collapse}
+    .tbl-wrap thead{background:linear-gradient(90deg,rgba(0,112,243,.1),rgba(0,212,255,.06));border-bottom:1px solid var(--border)}
+    .tbl-wrap th{padding:13px 16px;font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-muted);text-align:left;white-space:nowrap}
+    .tbl-wrap th.tc{text-align:center}
+    .tbl-wrap tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s}
+    .tbl-wrap tbody tr:hover{background:rgba(0,212,255,.04)}
+    .tbl-wrap tbody tr:last-child{border-bottom:none}
+    .tbl-wrap td{padding:12px 16px;font-size:.87rem;vertical-align:middle}
+    .tbl-wrap td.tc{text-align:center}
+    .tbl-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border);font-size:.8rem;color:var(--text-muted)}
+    .tk-id{font-family:monospace;font-size:.78rem;font-weight:800;color:var(--accent);background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.15);border-radius:6px;padding:3px 8px}
+    .area-badge{font-size:.78rem;color:var(--text-muted);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:3px 9px;display:inline-block;white-space:nowrap}
+    .tk-titulo{font-weight:600;font-size:.9rem;line-height:1.3}
+    .tk-desc{font-size:.78rem;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+    .dirigido-wrap{display:flex;align-items:center;gap:7px}
+    .dir-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:#fff;flex-shrink:0}
+    .dir-name{font-size:.84rem}
+    .sbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+    .sb-pendiente{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+    .sb-proceso{background:rgba(0,112,243,.12);color:#60a5fa;border:1px solid rgba(0,112,243,.3)}
+    .sb-finalizado{background:rgba(0,229,160,.1);color:#34d399;border:1px solid rgba(0,229,160,.3)}
+    .sb-cancelado{background:rgba(255,77,109,.08);color:#f87171;border:1px solid rgba(255,77,109,.2)}
+    .fecha-cell{font-size:.78rem;color:var(--text-muted);white-space:nowrap}
+    .actions{display:flex;gap:5px;align-items:center;justify-content:center}
+    .ab{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;font-size:.82rem;cursor:pointer;border:1px solid transparent;transition:background .15s,transform .1s}
+    .ab:hover{transform:scale(1.08)}
+    .ab-view{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.2)}
+    .ab-edit{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.2)}
+    .ab-check{background:rgba(0,229,160,.1);border-color:rgba(0,229,160,.25)}
+    .ab-view:hover{background:rgba(0,212,255,.2)}
+    .ab-edit:hover{background:rgba(251,191,36,.2)}
+    .ab-check:hover{background:rgba(0,229,160,.2)}
+    .notif-ok{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:10px;padding:13px 18px;margin-bottom:16px;color:#34d399;font-size:.88rem;font-weight:600}
+    .notif-err{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:13px 18px;margin-bottom:16px;color:#f87171;font-size:.88rem;font-weight:600}
+    .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(6px);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+    .confirm-overlay.open{opacity:1;pointer-events:all}
+    .confirm-box{background:var(--bg-card);border:1px solid rgba(255,77,109,.25);border-radius:20px;padding:36px 32px;max-width:380px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 30px rgba(255,77,109,.08);transform:scale(.93);transition:transform .2s}
+    .confirm-overlay.open .confirm-box{transform:scale(1)}
+    .confirm-icon{font-size:2.6rem;margin-bottom:14px}
+    .confirm-title{font-size:1.1rem;font-weight:800;margin-bottom:10px}
+    .confirm-msg{font-size:.85rem;color:var(--text-muted);line-height:1.65;margin-bottom:28px}
+    .confirm-msg strong{color:var(--text)}
+    .confirm-btns{display:flex;gap:12px;justify-content:center}
+    .btn-confirm-ok{padding:11px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;box-shadow:0 4px 15px rgba(239,68,68,.35);transition:opacity .2s}
+    .btn-confirm-ok:hover{opacity:.88}
+    .empty-state{display:flex;flex-direction:column;align-items:center;padding:56px 20px;gap:12px}
+    .empty-icon{font-size:2.4rem;opacity:.3}
+    .empty-txt{font-size:.85rem;color:var(--text-muted);text-align:center;line-height:1.7}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:1000;display:flex;align-items:center;justify-content:center;gap:20px;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+    .modal-overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.6),var(--glow);transform:translateY(20px) scale(.97);transition:transform .25s;flex-shrink:0}
+    .modal-overlay.open .modal{transform:translateY(0) scale(1)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);z-index:2}
+    .modal-header h2{font-size:1.05rem;font-weight:700}
+    .modal-close{width:34px;height:34px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:background .15s}
+    .modal-close:hover{background:rgba(255,77,109,.15);color:var(--danger)}
+    .modal-body{padding:24px 28px}
+    .modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:18px 28px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg-card)}
+    .btn-cancel{padding:10px 20px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:.9rem;cursor:pointer;transition:background .15s}
+    .btn-cancel:hover{background:rgba(255,255,255,.09)}
+    .btn-save{padding:10px 24px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:0 4px 15px rgba(0,112,243,.35)}
+    .m-section{margin-bottom:22px}
+    .m-section-title{font-size:.7rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+    .m-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+    .m-field{display:flex;flex-direction:column;gap:7px}
+    .m-field.full{grid-column:1/-1}
+    .m-field label{font-size:.7rem;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)}
+    .req{color:var(--danger)}
+    .m-field input,.m-field textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none;font-family:inherit;transition:border .2s;resize:vertical}
+    .m-field input:focus,.m-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .m-field input::placeholder,.m-field textarea::placeholder{color:var(--text-muted)}
+    .m-field input.error,.m-field textarea.error{border-color:var(--danger)!important}
+    .val-alert{display:none;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:14px 16px;margin-bottom:20px}
+    .val-alert.show{display:block}
+    .val-alert-title{color:#f87171;font-size:.85rem;font-weight:700;margin-bottom:8px}
+    .val-alert ul{list-style:none;padding:0;margin:0}
+    .val-alert ul li{font-size:.82rem;color:#fca5a5;padding:2px 0}
+    .val-alert ul li::before{content:"→ ";color:#f87171}
+    .csel{position:relative;width:100%}
+    .csel-trigger{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;cursor:pointer;user-select:none;transition:border .2s}
+    .csel.open .csel-trigger{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .csel.error .csel-trigger{border-color:var(--danger)!important}
+    .csel-placeholder{color:var(--text-muted)}
+    .csel-arrow{font-size:.72rem;color:var(--text-muted);transition:transform .2s}
+    .csel.open .csel-arrow{transform:rotate(180deg)}
+    .csel-dropdown{position:absolute;top:calc(100% + 5px);left:0;right:0;background:#111827;border:1px solid rgba(0,212,255,.2);border-radius:10px;overflow-y:auto;max-height:200px;z-index:9999;box-shadow:0 12px 30px rgba(0,0,0,.5);display:none}
+    .csel-dropdown::-webkit-scrollbar{width:4px}
+    .csel-dropdown::-webkit-scrollbar-thumb{background:rgba(0,212,255,.2);border-radius:4px}
+    .csel.open .csel-dropdown{display:block}
+    .csel-option{padding:10px 14px;font-size:.88rem;cursor:pointer;color:var(--text-muted);transition:background .12s}
+    .csel-option:hover{background:rgba(0,212,255,.1);color:var(--text)}
+    .csel-option.selected{background:rgba(0,112,243,.2);color:var(--accent);font-weight:600}
+    .csel-option.placeholder-opt{font-style:italic}
+    .modal-ver .m-field input,.modal-ver .m-field textarea{opacity:.6;pointer-events:none}
+    .modal-ver .csel-trigger{opacity:.6;pointer-events:none}
+    .modal-ver .btn-save{display:none!important}
+    .overlay-ver .foto-big-clear{display:none!important}
+    .overlay-ver .foto-big-label{pointer-events:none;cursor:default}
+    .modal-ver-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:4px 12px;font-size:.72rem;color:var(--accent);font-weight:700;letter-spacing:.8px;margin-left:10px}
+    .foto-input{display:none}
+    .fotos-panel{width:580px;flex-shrink:0;opacity:0;transform:translateX(16px);transition:opacity .3s,transform .3s;pointer-events:none}
+    .modal-overlay.open .fotos-panel{opacity:1;transform:translateX(0);pointer-events:all}
+    .fotos-panel-title{font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+    .fotos-panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .foto-big-cell{position:relative;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.04);border:2px dashed rgba(255,255,255,.1);height:340px;transition:border-color .2s,box-shadow .2s}
+    .foto-big-cell.loaded{border-color:var(--accent);border-style:solid;box-shadow:0 0 14px rgba(0,212,255,.18)}
+    .foto-big-label{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;cursor:pointer;gap:6px;text-align:center}
+    .foto-big-label .no-foto{font-size:1.8rem;opacity:.18;pointer-events:none;line-height:1.4;color:var(--text-muted)}
+    .foto-big-label .no-foto small{font-size:.68rem;display:block;opacity:.7}
+    .foto-big-cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0a0f1a;display:none;cursor:zoom-in}
+    .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:none;align-items:center;justify-content:center}
+    .lb-overlay.open{display:flex}
+    .lb-overlay img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:10px;box-shadow:0 0 60px rgba(0,0,0,.8)}
+    .lb-close{position:fixed;top:20px;right:24px;width:38px;height:38px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:50%;cursor:pointer;font-size:1.1rem;color:#fff;display:flex;align-items:center;justify-content:center;transition:background .15s}
+    .lb-close:hover{background:rgba(255,77,109,.4)}
+    .foto-big-clear{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(255,77,109,.9);border:none;color:#fff;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:3;line-height:1}
+    .foto-big-cell.loaded .foto-big-clear{display:flex}
+    .foto-big-cell.loaded .foto-big-label{display:none}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="s-icon">⚙️</div>
+      <div><div class="s-name">T.I SISTEMA</div><div class="s-sub">Panel de Control</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">General</div>
+      <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
+      <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
+      <div class="nav-section-title">Soporte T.I</div>
+      <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
+      <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
+      <a href="{% url 'tickets_lista' %}" class="nav-item active"><span class="n-icon">🎫</span> Tickets</a>
+      <div class="nav-section-title">Administración</div>
+      <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
+      <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">{{ username|first|upper }}</div>
+        <div class="user-details">
+          <div class="u-name">{{ nombre }} {{ apellido }}</div>
+          <div class="u-role">{{ rol }}</div>
+        </div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <span class="topbar-title">Gestión de Tickets</span>
+      <div class="topbar-right">
+        <span class="topbar-time" id="clock">--:--:--</span>
+        <span class="role-tag role-usuario">{{ rol }}</span>
+      </div>
+    </header>
+    <div class="page-body">
+      {% if messages %}
+        {% for msg in messages %}
+          {% if msg.tags == 'error' %}<div class="notif-err">⚠ {{ msg }}</div>
+          {% else %}<div class="notif-ok">✅ {{ msg }}</div>{% endif %}
+        {% endfor %}
+      {% endif %}
+      <div class="tk-stats">
+        <div class="tk-stat">
+          <div class="tk-stat-icon" style="background:rgba(0,112,243,.12)">🎫</div>
+          <div><div class="tk-stat-val">{{ stats.total }}</div><div class="tk-stat-lbl">Total</div></div>
+        </div>
+        <div class="tk-stat">
+          <div class="tk-stat-icon" style="background:rgba(251,191,36,.12)">⏳</div>
+          <div><div class="tk-stat-val">{{ stats.pendiente }}</div><div class="tk-stat-lbl">Pendientes</div></div>
+        </div>
+        <div class="tk-stat">
+          <div class="tk-stat-icon" style="background:rgba(0,112,243,.12)">🔄</div>
+          <div><div class="tk-stat-val">{{ stats.proceso }}</div><div class="tk-stat-lbl">En Proceso</div></div>
+        </div>
+        <div class="tk-stat">
+          <div class="tk-stat-icon" style="background:rgba(0,229,160,.1)">✅</div>
+          <div><div class="tk-stat-val">{{ stats.finalizado }}</div><div class="tk-stat-lbl">Finalizados</div></div>
+        </div>
+      </div>
+      <div class="tk-toolbar">
+        <div class="tk-filters">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Buscar por título, ID, área...">
+          </div>
+          <select class="tk-select" id="filterArea">
+            <option value="">Todas las áreas</option>
+            <option value="T.I">T.I</option>
+            <option value="SUPERVISORES">SUPERVISORES</option>
+            <option value="MECANICOS">MECANICOS</option>
+            <option value="S.S.P.A">S.S.P.A</option>
+            <option value="CALIDAD">CALIDAD</option>
+            <option value="PROGRAMACION">PROGRAMACION</option>
+            <option value="TELEMETRIA">TELEMETRIA</option>
+            <option value="COORDINACION">COORDINACION</option>
+            <option value="ELECTRICOS">ELECTRICOS</option>
+            <option value="ALMACEN">ALMACEN</option>
+            <option value="MONITOREO">MONITOREO</option>
+            <option value="ADMINISTRACION">ADMINISTRACION</option>
+            <option value="OBRA MECANICA">OBRA MECANICA</option>
+            <option value="CONTABILIDAD">CONTABILIDAD</option>
+          </select>
+          <select class="tk-select" id="filterEstatus">
+            <option value="">Todos los estatus</option>
+            <option value="PEN">Pendiente</option>
+            <option value="PRO">En Proceso</option>
+            <option value="FIN">Finalizado</option>
+          </select>
+        </div>
+        <button class="btn-nuevo" onclick="abrirModal()">＋ Nuevo Ticket</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticket</th>
+              <th>Área</th>
+              <th>Título / Descripción</th>
+              <th>Dirigido a</th>
+              <th class="tc">Estatus</th>
+              <th class="tc">Ticket</th>
+              <th>Fecha</th>
+              <th class="tc">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="ticketsTbody">
+            {% for t in tickets %}
+            <tr data-area="{{ t.area }}" data-estatus="{{ t.estatus }}">
+              <td><span class="tk-id">#{{ t.id_ticket }}</span></td>
+              <td><span class="area-badge">{{ t.area|default:"—" }}</span></td>
+              <td>
+                <div class="tk-titulo">{{ t.titulo }}</div>
+                <div class="tk-desc">{{ t.descripcion|truncatechars:60 }}</div>
+              </td>
+              <td>
+                <div class="dirigido-wrap">
+                  <div class="dir-avatar">{{ t.dirigido_personal|first|upper }}</div>
+                  <div class="dir-name">{{ t.dirigido_personal }}</div>
+                </div>
+              </td>
+              <td class="tc">
+                {% if t.estatus == 'PEN' %}<span class="sbadge sb-pendiente">Pendiente</span>
+                {% elif t.estatus == 'PRO' %}<span class="sbadge sb-proceso">En Proceso</span>
+                {% elif t.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
+                {% else %}<span class="sbadge sb-cancelado">✕ Cancelado</span>{% endif %}
+              </td>
+              <td class="tc">
+                {% if t.estatus_usuario %}
+                <span class="sbadge sb-cancelado">Cerrado</span>
+                {% else %}
+                <span class="sbadge sb-proceso">Abierto</span>
+                {% endif %}
+              </td>
+              <td class="fecha-cell">{{ t.fecha_creacion|date:"d/m/Y H:i" }}</td>
+              <td class="tc">
+                <div class="actions">
+                  <button class="ab ab-view" title="Ver detalle"
+                    data-id="{{ t.id_ticket }}" onclick="verTicketBtn(this)">🔍</button>
+                  {% if not t.estatus_usuario %}
+                  <button class="ab ab-edit" title="Editar"
+                    data-id="{{ t.id_ticket }}" onclick="editarTicketBtn(this)">✏️</button>
+                  <button class="ab ab-check" title="Cerrar y enviar a T.I"
+                    data-id="{{ t.id_ticket }}" onclick="cerrarTicketBtn(this)">✔</button>
+                  {% else %}
+                  <span class="sbadge sb-finalizado" style="font-size:.65rem;padding:3px 8px">Enviado</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7">
+                <div class="empty-state">
+                  <div class="empty-icon"></div>
+                  <div class="empty-txt">
+                    No hay tickets registrados.<br>
+                    Crea el primero con <strong>Nuevo Ticket</strong>.
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="tbl-footer">
+          <span>Mostrando <strong id="contadorReg">{{ tickets|length }}</strong> tickets</span>
+          <span>Total: {{ stats.total }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modalOverlay" onclick="cerrarFuera(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h2 id="modalTitulo">Nuevo Ticket</h2>
+      <button class="modal-close" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="val-alert" id="valAlert">
+        <div class="val-alert-title">⚠ Faltan los siguientes campos obligatorios:</div>
+        <ul id="valList"></ul>
+      </div>
+      <form id="ticketForm" method="POST" enctype="multipart/form-data"
+            action="{% url 'ticket_guardar' %}"
+            data-crear-url="{% url 'ticket_guardar' %}">
+        {% csrf_token %}
+        <div class="m-section">
+          <div class="m-section-title">Información del Ticket</div>
+          <div class="m-grid">
+            <div class="m-field full">
+              <label>Título <span class="req">*</span></label>
+              <input type="text" name="titulo" id="fTitulo"
+                     placeholder="Describe brevemente el problema..." maxlength="200"
+                     oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="m-field">
+              <label>Área <span class="req">*</span></label>
+              <div class="csel" id="cselArea">
+                <div class="csel-trigger" onclick="toggleCsel('cselArea')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="T.I">T.I</div>
+                  <div class="csel-option" data-value="SUPERVISORES">SUPERVISORES</div>
+                  <div class="csel-option" data-value="MECANICOS">MECANICOS</div>
+                  <div class="csel-option" data-value="S.S.P.A">S.S.P.A</div>
+                  <div class="csel-option" data-value="CALIDAD">CALIDAD</div>
+                  <div class="csel-option" data-value="PROGRAMACION">PROGRAMACION</div>
+                  <div class="csel-option" data-value="TELEMETRIA">TELEMETRIA</div>
+                  <div class="csel-option" data-value="COORDINACION">COORDINACION</div>
+                  <div class="csel-option" data-value="ELECTRICOS">ELECTRICOS</div>
+                  <div class="csel-option" data-value="ALMACEN">ALMACEN</div>
+                  <div class="csel-option" data-value="MONITOREO">MONITOREO</div>
+                  <div class="csel-option" data-value="ADMINISTRACION">ADMINISTRACION</div>
+                  <div class="csel-option" data-value="OBRA MECANICA">OBRA MECANICA</div>
+                  <div class="csel-option" data-value="CONTABILIDAD">CONTABILIDAD</div>
+                </div>
+                <input type="hidden" name="id_area" id="fArea">
+              </div>
+            </div>
+            <div class="m-field">
+              <label>Dirigido a (personal T.I) <span class="req">*</span></label>
+              <div class="csel" id="cselDirigido">
+                <div class="csel-trigger" onclick="toggleCsel('cselDirigido')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="T.I">T.I</div>
+                </div>
+                <input type="hidden" name="id_dirigido" id="fDirigido">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="m-section">
+          <div class="m-section-title">Equipo de Cómputo</div>
+          <div class="m-grid">
+            <div class="m-field full">
+              <label>Equipo <span class="req">*</span></label>
+              <div class="csel" id="cselEquipo">
+                <div class="csel-trigger" onclick="toggleCsel('cselEquipo')">
+                  <span class="csel-val csel-placeholder">— Selecciona un equipo —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="" data-nombre="">— Selecciona un equipo —</div>
+                  {% for e in equipos %}
+                  <div class="csel-option" data-value="{{ e.id_equipo }}" data-nombre="{{ e.nombre_equipo }}">{{ e.nombre_equipo }}</div>
+                  {% endfor %}
+                </div>
+                <input type="hidden" name="fk_equipo" id="fEquipo">
+                <input type="hidden" name="fk_nombre_equipo" id="fNombreEquipo">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="m-section">
+          <div class="m-section-title">Detalle</div>
+          <div class="m-grid">
+            <div class="m-field full">
+              <label>Descripción <span class="req">*</span></label>
+              <textarea name="descripcion" id="fDescripcion" rows="4"
+                        placeholder="Describe con detalle el problema o solicitud..."
+                        oninput="this.value=this.value.toUpperCase()"></textarea>
+            </div>
+            <div class="m-field full">
+              <label>Observaciones <span style="font-size:.68rem;color:var(--text-muted)">(opcional)</span></label>
+              <textarea name="observaciones" id="fObservaciones" rows="3"
+                        placeholder="Información adicional, acceso, horario disponible..."
+                        oninput="this.value=this.value.toUpperCase()"></textarea>
+            </div>
+          </div>
+        </div>
+        <input type="file" class="foto-input" name="foto1" id="foto1Input" accept="image/*" onchange="previewFoto(this,1)">
+        <input type="file" class="foto-input" name="foto2" id="foto2Input" accept="image/*" onchange="previewFoto(this,2)">
+        <input type="file" class="foto-input" name="foto3" id="foto3Input" accept="image/*" onchange="previewFoto(this,3)">
+        <input type="file" class="foto-input" name="foto4" id="foto4Input" accept="image/*" onchange="previewFoto(this,4)">
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-save" id="btnGuardar" onclick="validarYGuardar()">Crear Ticket</button>
+    </div>
+  </div>
+  <div class="fotos-panel" id="fotosPanel">
+    <div class="fotos-panel-title">Fotos del Problema <span style="font-size:.65rem;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(máx. 4, opcional)</span></div>
+    <div class="fotos-panel-grid">
+      <div class="foto-big-cell" id="cell1">
+        <label class="foto-big-label" for="foto1Input"><span class="no-foto">📷<br><small>Foto 1</small></span></label>
+        <img id="prevBig1" alt="">
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(1)">✕</button>
+      </div>
+      <div class="foto-big-cell" id="cell2">
+        <label class="foto-big-label" for="foto2Input"><span class="no-foto">📷<br><small>Foto 2</small></span></label>
+        <img id="prevBig2" alt="">
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(2)">✕</button>
+      </div>
+      <div class="foto-big-cell" id="cell3">
+        <label class="foto-big-label" for="foto3Input"><span class="no-foto">📷<br><small>Foto 3</small></span></label>
+        <img id="prevBig3" alt="">
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(3)">✕</button>
+      </div>
+      <div class="foto-big-cell" id="cell4">
+        <label class="foto-big-label" for="foto4Input"><span class="no-foto">📷<br><small>Foto 4</small></span></label>
+        <img id="prevBig4" alt="">
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(4)">✕</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="confirm-title">¿Cerrar y enviar a T.I?</div>
+    <div class="confirm-msg">Una vez cerrado, <strong>no podrás editar</strong> este ticket. Se enviará directamente al equipo de T.I para su atención.</div>
+    <div class="confirm-btns">
+      <button class="btn-cancel" onclick="cerrarConfirm()">Cancelar</button>
+      <button class="btn-confirm-ok" id="btnConfirmOk">Sí, cerrar y enviar</button>
+    </div>
+  </div>
+</div>
+<div class="lb-overlay" id="lbOverlay" onclick="cerrarLb()">
+  <button class="lb-close" onclick="cerrarLb()">✕</button>
+  <img id="lbImg" src="" alt="">
+</div>
+<script>
+  const elClk = document.getElementById('clock');
+  function tick(){ elClk.textContent = new Date().toLocaleTimeString('es-MX'); }
+  tick(); setInterval(tick, 1000);
+  function toggleCsel(id){
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('open');
+    document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
+    if(!isOpen) el.classList.add('open');
+  }
+  function initCsel(id){
+    document.getElementById(id).querySelectorAll('.csel-option').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        const csel = document.getElementById(id);
+        const val = opt.dataset.value;
+        csel.querySelector('.csel-val').textContent = opt.textContent;
+        csel.querySelector('.csel-val').classList.toggle('csel-placeholder', !val);
+        csel.querySelector('input[type=hidden]').value = val;
+        csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+        opt.classList.add('selected');
+        csel.classList.remove('open','error');
+      });
+    });
+  }
+  function setCsel(id, value){
+    const csel = document.getElementById(id);
+    if(!csel) return;
+    const opt = csel.querySelector(`[data-value="${value}"]`);
+    if(!opt) return;
+    csel.querySelector('.csel-val').textContent = opt.textContent;
+    csel.querySelector('.csel-val').classList.remove('csel-placeholder');
+    csel.querySelector('input[type=hidden]').value = value;
+    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    opt.classList.add('selected');
+    csel.classList.remove('error');
+  }
+  function resetCsel(id){
+    const csel = document.getElementById(id);
+    if(!csel) return;
+    csel.querySelector('.csel-val').textContent = '— Selecciona —';
+    csel.querySelector('.csel-val').classList.add('csel-placeholder');
+    csel.querySelector('input[type=hidden]').value = '';
+    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    csel.classList.remove('error','open');
+  }
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.csel')) document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
+  });
+  ['cselArea','cselDirigido'].forEach(initCsel);
+  document.getElementById('cselEquipo').querySelectorAll('.csel-option').forEach(opt=>{
+    opt.addEventListener('click',()=>{
+      const csel = document.getElementById('cselEquipo');
+      const val  = opt.dataset.value;
+      const nom  = opt.dataset.nombre || '';
+      csel.querySelector('.csel-val').textContent = opt.textContent.trim();
+      csel.querySelector('.csel-val').classList.toggle('csel-placeholder',!val);
+      document.getElementById('fEquipo').value       = val;
+      document.getElementById('fNombreEquipo').value = nom;
+      csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+      if(val) opt.classList.add('selected');
+      csel.classList.remove('open');
+    });
+  });
+  function resetCselEquipo(){
+    const csel = document.getElementById('cselEquipo');
+    csel.querySelector('.csel-val').textContent='— Selecciona un equipo —';
+    csel.querySelector('.csel-val').classList.add('csel-placeholder');
+    document.getElementById('fEquipo').value='';
+    document.getElementById('fNombreEquipo').value='';
+    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    csel.classList.remove('error','open');
+  }
+  function abrirLb(src){ document.getElementById('lbImg').src=src; document.getElementById('lbOverlay').classList.add('open'); }
+  function cerrarLb(){ document.getElementById('lbOverlay').classList.remove('open'); }
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarLb(); });
+  function previewFoto(input,n){
+    const file=input.files[0];
+    if(!file) return;
+    const cell=document.getElementById('cell'+n);
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=document.getElementById('prevBig'+n);
+      img.src=e.target.result; img.style.display='block';
+      img.onclick=()=>abrirLb(img.src);
+      cell.classList.add('loaded');
+    };
+    reader.readAsDataURL(file);
+  }
+  function limpiarFoto(n){
+    document.getElementById('foto'+n+'Input').value='';
+    const img=document.getElementById('prevBig'+n);
+    img.src=''; img.style.display='none'; img.onclick=null;
+    document.getElementById('cell'+n).classList.remove('loaded');
+  }
+  function limpiarTodasFotos(){ [1,2,3,4].forEach(limpiarFoto); }
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') cerrarModal(); });
+  function abrirModal(){
+    document.getElementById('modalOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function cerrarModal(){
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+    const form = document.getElementById('ticketForm');
+    form.action = form.dataset.crearUrl;
+    document.getElementById('modalTitulo').textContent = 'Nuevo Ticket';
+    document.getElementById('btnGuardar').textContent = 'Crear Ticket';
+    document.getElementById('modal').classList.remove('modal-ver');
+    document.getElementById('modalOverlay').classList.remove('overlay-ver');
+    document.querySelector('.btn-cancel').textContent = 'Cancelar';
+    limpiarErrores();
+    form.reset();
+    ['cselArea','cselDirigido'].forEach(resetCsel);
+    resetCselEquipo();
+    limpiarTodasFotos();
+  }
+  function cerrarFuera(e){ if(e.target===document.getElementById('modalOverlay')) cerrarModal(); }
+  const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  async function verTicketBtn(btn){
+    const d = await fetchDatos(btn.dataset.id);
+    if(!d) return;
+    poblarModal(d, true);
+  }
+  async function editarTicketBtn(btn){
+    const d = await fetchDatos(btn.dataset.id);
+    if(!d) return;
+    poblarModal(d, false);
+  }
+  let _idCerrar = null;
+  function cerrarTicketBtn(btn){
+    _idCerrar = btn.dataset.id;
+    document.getElementById('confirmOverlay').classList.add('open');
+  }
+  function cerrarConfirm(){
+    _idCerrar = null;
+    document.getElementById('confirmOverlay').classList.remove('open');
+  }
+  document.getElementById('btnConfirmOk').addEventListener('click', async ()=>{
+    if(!_idCerrar) return;
+    document.getElementById('btnConfirmOk').textContent = 'Enviando...';
+    document.getElementById('btnConfirmOk').disabled = true;
+    await fetch(`/tickets/cerrar/${_idCerrar}/`, {method:'POST', headers:{'X-CSRFToken':CSRF}});
+    location.reload();
+  });
+
+  async function fetchDatos(id){
+    const res = await fetch(`/tickets/datos/${id}/`);
+    if(!res.ok){ alert('Error al cargar el ticket.'); return null; }
+    return res.json();
+  }
+
+  function poblarModal(d, soloVer){
+    limpiarTodasFotos();
+    limpiarErrores();
+    const form = document.getElementById('ticketForm');
+    document.getElementById('fTitulo').value       = d.titulo;
+    document.getElementById('fDescripcion').value  = d.descripcion;
+    document.getElementById('fObservaciones').value= d.observacion;
+    function setCselSeguro(id, value){
+      const csel = document.getElementById(id);
+      if(!csel) return;
+      const opt = csel.querySelector(`[data-value="${value}"]`);
+      const valEl = csel.querySelector('.csel-val');
+      valEl.textContent = opt ? opt.textContent.trim() : value;
+      valEl.classList.remove('csel-placeholder');
+      csel.querySelector('input[type=hidden]').value = value;
+      csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+      if(opt) opt.classList.add('selected');
+    }
+    setCselSeguro('cselArea',     d.area);
+    setCselSeguro('cselDirigido', d.dirigido_personal);
+    if(d.fk_equipo){
+      const csel = document.getElementById('cselEquipo');
+      csel.querySelector('.csel-val').textContent = d.fk_nombre_equipo || d.fk_equipo;
+      csel.querySelector('.csel-val').classList.remove('csel-placeholder');
+      document.getElementById('fEquipo').value       = d.fk_equipo;
+      document.getElementById('fNombreEquipo').value = d.fk_nombre_equipo;
+    }
+    [1,2,3,4].forEach(n=>{
+      if(d[`tiene_foto${n}`]){
+        const img = document.getElementById('prevBig'+n);
+        img.src = `/tickets/foto/${d.id_ticket}/${n}/`;
+        img.style.display = 'block';
+        img.onclick = ()=>abrirLb(img.src);
+        document.getElementById('cell'+n).classList.add('loaded');
+      }
+    });
+    if(soloVer){
+      form.action = form.dataset.crearUrl;
+      document.getElementById('modalTitulo').textContent = `Ticket #${d.id_ticket}`;
+      document.getElementById('modal').classList.add('modal-ver');
+      document.getElementById('modalOverlay').classList.add('overlay-ver');
+      document.querySelector('.btn-cancel').textContent = 'Cerrar';
+    } else {
+      form.action = `/tickets/actualizar/${d.id_ticket}/`;
+      document.getElementById('modalTitulo').textContent = `Editar Ticket #${d.id_ticket}`;
+      document.getElementById('btnGuardar').textContent = 'Guardar Cambios';
+    }
+    abrirModal();
+  }
+  function limpiarErrores(){
+    document.querySelectorAll('.error').forEach(e=>e.classList.remove('error'));
+    document.getElementById('valAlert').classList.remove('show');
+    document.getElementById('valList').innerHTML = '';
+  }
+  function marcarError(id, label, lista){
+    const el = document.getElementById(id);
+    if(el) el.classList.add('error');
+    lista.push(label);
+  }
+  function marcarCselError(id, label, lista){
+    document.getElementById(id).classList.add('error');
+    lista.push(label);
+  }
+  function validarYGuardar(){
+    limpiarErrores();
+    const errores = [];
+    if(!document.getElementById('fTitulo').value.trim())      marcarError('fTitulo','Título',errores);
+    if(!document.getElementById('fArea').value)               marcarCselError('cselArea','Área',errores);
+    if(!document.getElementById('fDirigido').value)           marcarCselError('cselDirigido','Dirigido a',errores);
+    if(!document.getElementById('fEquipo').value)             marcarCselError('cselEquipo','Equipo de Cómputo',errores);
+    if(!document.getElementById('fDescripcion').value.trim()) marcarError('fDescripcion','Descripción',errores);
+    if(errores.length > 0){
+      const lista = document.getElementById('valList');
+      errores.forEach(e=>{ const li=document.createElement('li'); li.textContent=e; lista.appendChild(li); });
+      document.getElementById('valAlert').classList.add('show');
+      document.getElementById('modal').scrollTop = 0;
+      return;
+    }
+    document.getElementById('ticketForm').submit();
+  }
+  const searchInput   = document.getElementById('searchInput');
+  const filterArea    = document.getElementById('filterArea');
+  const filterEstatus = document.getElementById('filterEstatus');
+  function filtrarTabla(){
+    const q       = searchInput.value.toLowerCase().trim();
+    const area    = filterArea.value;
+    const estatus = filterEstatus.value;
+    const rows    = document.querySelectorAll('#ticketsTbody tr[data-area]');
+    let visible   = 0;
+    rows.forEach(row=>{
+      const matchQ = !q || row.textContent.toLowerCase().includes(q);
+      const matchA = !area    || row.dataset.area    === area;
+      const matchE = !estatus || row.dataset.estatus === estatus;
+      const show   = matchQ && matchA && matchE;
+      row.style.display = show ? '' : 'none';
+      if(show) visible++;
+    });
+    document.getElementById('contadorReg').textContent = visible;
+  }
+  searchInput.addEventListener('input', filtrarTabla);
+  filterArea.addEventListener('change', filtrarTabla);
+  filterEstatus.addEventListener('change', filtrarTabla);
+</script>
+</body>
+</html>

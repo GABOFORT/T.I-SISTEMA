@@ -1,0 +1,31 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.login_view, name='login'),
+    path('dashboard/', views.dashboard_view, name='dashboard'),
+    path('logout/', views.logout_view, name='logout'),
+    path('equipos/', views.equipos_lista, name='equipos_lista'),
+    path('equipos/guardar/', views.equipo_guardar, name='equipo_guardar'),
+    path('equipos/datos/<str:id_equipo>/', views.equipo_datos, name='equipo_datos'),
+    path('equipos/actualizar/<str:id_equipo>/', views.equipo_actualizar, name='equipo_actualizar'),
+    path('equipos/nuevo/', views.equipo_form, name='equipo_nuevo'),
+    path('equipos/editar/<str:id_equipo>/', views.equipo_form, name='equipo_editar'),
+    path('usuarios/', views.usuarios_lista, name='usuarios_lista'),
+    path('usuarios/guardar/', views.usuario_guardar, name='usuario_guardar'),
+    path('usuarios/datos/<str:id_usuario>/', views.usuario_datos, name='usuario_datos'),
+    path('usuarios/actualizar/<str:id_usuario>/', views.usuario_actualizar, name='usuario_actualizar'),
+    path('tickets/', views.tickets_lista, name='tickets_lista'),
+    path('tickets/guardar/', views.ticket_guardar, name='ticket_guardar'),
+    path('tickets/datos/<str:id_ticket>/', views.ticket_datos, name='ticket_datos'),
+    path('tickets/foto/<str:id_ticket>/<int:n>/', views.ticket_foto, name='ticket_foto'),
+    path('tickets/actualizar/<str:id_ticket>/', views.ticket_actualizar, name='ticket_actualizar'),
+    path('tickets/cerrar/<str:id_ticket>/', views.ticket_cerrar, name='ticket_cerrar'),
+    path('configuracion/', views.configuracion_vista, name='configuracion'),
+    path('configuracion/niveles/guardar/', views.nivel_guardar, name='nivel_guardar'),
+    path('configuracion/niveles/actualizar/<str:id_nivel>/', views.nivel_actualizar, name='nivel_actualizar'),
+    path('configuracion/permisos/guardar/', views.permiso_guardar, name='permiso_guardar'),
+    path('configuracion/permisos/actualizar/<str:id_permiso>/', views.permiso_actualizar, name='permiso_actualizar'),
+    path('configuracion/roles/guardar/', views.rol_guardar, name='rol_guardar'),
+    path('configuracion/roles/actualizar/<str:id_rol>/', views.rol_actualizar, name='rol_actualizar'),
+]

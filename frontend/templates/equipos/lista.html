@@ -1,0 +1,967 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T.I Sistema — Equipos</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <style>
+    .eq-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+    .eq-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:14px;transition:border-color .2s,box-shadow .2s}
+    .eq-stat:hover{border-color:var(--accent);box-shadow:var(--glow-sm)}
+    .eq-stat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+    .eq-stat-val{font-size:1.5rem;font-weight:800;line-height:1}
+    .eq-stat-lbl{font-size:.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+    .eq-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .eq-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
+    .search-wrap{position:relative;flex:1;min-width:200px}
+    .search-wrap input{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px 9px 38px;color:var(--text);font-size:.87rem;outline:none;transition:border .2s}
+    .search-wrap input:focus{border-color:var(--accent)}
+    .search-wrap input::placeholder{color:var(--text-muted)}
+    .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.9rem;pointer-events:none}
+    .eq-select{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--text);font-size:.87rem;outline:none;cursor:pointer;transition:border .2s}
+    .eq-select:focus{border-color:var(--accent)}
+    .tbl-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    .tbl-wrap table{width:100%;border-collapse:collapse}
+    .tbl-wrap thead{background:linear-gradient(90deg,rgba(0,112,243,.1),rgba(0,212,255,.06));border-bottom:1px solid var(--border)}
+    .tbl-wrap th{padding:13px 16px;font-size:.72rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-muted);text-align:left;white-space:nowrap}
+    .tbl-wrap tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s}
+    .tbl-wrap tbody tr:hover{background:rgba(0,212,255,.04)}
+    .tbl-wrap tbody tr:last-child{border-bottom:none}
+    .tbl-wrap td{padding:14px 16px;font-size:.88rem;vertical-align:middle}
+    .td-id{font-size:.75rem;color:var(--text-muted);font-weight:700;font-family:monospace}
+    .td-nombre strong{font-size:.92rem;display:block}
+    .td-nombre span{font-size:.75rem;color:var(--text-muted)}
+    .td-serie{font-family:monospace;font-size:.8rem;color:var(--text-muted)}
+    .tbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:.74rem;font-weight:700;white-space:nowrap}
+    .tb-laptop{background:rgba(0,112,243,.15);color:#60a5fa;border:1px solid rgba(0,112,243,.25)}
+    .tb-pc{background:rgba(0,229,160,.12);color:#34d399;border:1px solid rgba(0,229,160,.25)}
+    .tb-servidor{background:rgba(255,204,0,.12);color:#fbbf24;border:1px solid rgba(255,204,0,.25)}
+    .tb-impresora{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+    .ebadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.5px}
+    .eb-act{background:rgba(0,229,160,.1);color:#34d399;border:1px solid rgba(0,229,160,.3)}
+    .eb-ina{background:rgba(255,77,109,.1);color:#f87171;border:1px solid rgba(255,77,109,.3)}
+    .actions{display:flex;gap:6px;align-items:center;justify-content:center}
+    .ab{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;font-size:.88rem;text-decoration:none;transition:background .15s,transform .1s;cursor:pointer;border:1px solid transparent}
+    .ab:hover{transform:scale(1.08)}
+    .ab-view{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.2)}
+    .ab-edit{background:rgba(255,204,0,.1);border-color:rgba(255,204,0,.2)}
+    .ab-view:hover{background:rgba(0,212,255,.2)}
+    .ab-edit:hover{background:rgba(255,204,0,.2)}
+    .tbl-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border);font-size:.8rem;color:var(--text-muted)}
+    .btn-nuevo{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;box-shadow:0 4px 15px rgba(0,112,243,.4);transition:opacity .2s,transform .1s}
+    .btn-nuevo:hover{opacity:.9;transform:translateY(-1px)}
+    .csel{position:relative;width:100%}
+    .csel-trigger{
+      display:flex;align-items:center;justify-content:space-between;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:10px;padding:10px 14px;
+      color:var(--text);font-size:.9rem;cursor:pointer;
+      user-select:none;transition:border .2s,box-shadow .2s;
+    }
+    .csel-trigger:hover{border-color:rgba(255,255,255,.2)}
+    .csel.open .csel-trigger{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .csel.error .csel-trigger{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(255,77,109,.1)!important}
+    .csel-placeholder{color:var(--text-muted)}
+    .csel-arrow{font-size:.75rem;color:var(--text-muted);transition:transform .2s}
+    .csel.open .csel-arrow{transform:rotate(180deg)}
+    .csel-dropdown{
+      position:absolute;top:calc(100% + 6px);left:0;right:0;
+      background:#111827;
+      border:1px solid rgba(0,212,255,.2);
+      border-radius:10px;
+      overflow-y:auto;
+      max-height:220px;
+      z-index:9999;
+      box-shadow:0 12px 30px rgba(0,0,0,.5);
+      display:none;
+    }
+    .csel-dropdown::-webkit-scrollbar{width:5px}
+    .csel-dropdown::-webkit-scrollbar-track{background:transparent}
+    .csel-dropdown::-webkit-scrollbar-thumb{background:rgba(0,212,255,.25);border-radius:4px}
+    .csel-dropdown::-webkit-scrollbar-thumb:hover{background:rgba(0,212,255,.45)}
+    .csel.open .csel-dropdown{display:block}
+    .csel-option{
+      padding:10px 14px;font-size:.9rem;cursor:pointer;
+      color:var(--text-muted);
+      transition:background .12s,color .12s;
+    }
+    .csel-option:hover{background:rgba(0,212,255,.1);color:var(--text)}
+    .csel-option.selected{background:rgba(0,112,243,.2);color:var(--accent);font-weight:600}
+    .csel-option.placeholder-opt{color:var(--text-muted);font-style:italic}
+    .campo-bloqueado .csel-trigger{opacity:.35;pointer-events:none}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+    .modal-overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;width:100%;max-width:800px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.6),var(--glow);transform:translateY(20px) scale(.97);transition:transform .25s}
+    .modal-overlay.open .modal{transform:translateY(0) scale(1)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);z-index:2}
+    .modal-header h2{font-size:1.05rem;font-weight:700}
+    .modal-close{width:34px;height:34px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:background .15s,color .15s}
+    .modal-close:hover{background:rgba(255,77,109,.15);color:var(--danger);border-color:rgba(255,77,109,.3)}
+    .modal-body{padding:24px 28px}
+    .modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:18px 28px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg-card)}
+    .val-alert{display:none;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:14px 16px;margin-bottom:20px}
+    .val-alert.show{display:block}
+    .val-alert-title{color:#f87171;font-size:.85rem;font-weight:700;margin-bottom:8px}
+    .val-alert ul{list-style:none;padding:0;margin:0}
+    .val-alert ul li{font-size:.82rem;color:#fca5a5;padding:2px 0}
+    .val-alert ul li::before{content:"→ ";color:#f87171}
+    .m-section{margin-bottom:22px}
+    .m-section-title{font-size:.73rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+    .m-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+    .m-field{display:flex;flex-direction:column;gap:7px}
+    .m-field.full{grid-column:1/-1}
+    .m-field label{font-size:.73rem;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)}
+    .req{color:var(--danger)}
+    .m-field input,
+    .m-field select,
+    .m-field textarea{
+      width:100%;box-sizing:border-box;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:10px;padding:10px 14px;
+      color:var(--text);font-size:.9rem;
+      outline:none;font-family:inherit;
+      appearance:none;-webkit-appearance:none;
+      color-scheme: dark;
+      transition:border .2s,box-shadow .2s;
+    }
+    .m-field input::placeholder,.m-field textarea::placeholder{color:var(--text-muted)}
+    .m-field input:focus,.m-field select:focus,.m-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .m-field input.error,.m-field select.error,.select-wrap.error select{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(255,77,109,.1)!important}
+    .m-field textarea{resize:vertical;min-height:80px}
+    .campo-bloqueado input,
+    .campo-bloqueado select,
+    .campo-bloqueado textarea,
+    .campo-bloqueado .prefix-wrap{
+      opacity:.35;pointer-events:none;cursor:not-allowed;
+    }
+    .campo-bloqueado label{opacity:.4}
+    .m-field input[disabled]{opacity:.35;cursor:not-allowed;pointer-events:none}
+    .tipo-hint{
+      display:flex;align-items:center;gap:10px;
+      background:rgba(0,212,255,.07);
+      border:1px dashed rgba(0,212,255,.25);
+      border-radius:10px;padding:12px 16px;
+      font-size:.84rem;color:var(--accent);
+      margin-bottom:18px;
+    }
+    .tipo-hint.hidden{display:none}
+    .select-wrap{position:relative}
+    .select-wrap select{width:100%;padding-right:36px}
+    .select-wrap::after{content:"▾";position:absolute;right:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:.85rem}
+    .prefix-wrap{display:flex;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;overflow:hidden;transition:border .2s,box-shadow .2s}
+    .prefix-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .prefix-wrap:focus-within.error,
+    .prefix-wrap.error{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(255,77,109,.1)!important}
+    .input-prefix{padding:10px 10px 10px 14px;color:var(--accent);font-size:.9rem;font-weight:600;white-space:nowrap;background:rgba(0,212,255,.06);border-right:1px solid rgba(0,212,255,.15)}
+    .prefix-wrap input{flex:1;background:transparent;border:none;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none}
+    .prefix-wrap input::placeholder{color:var(--text-muted)}
+    .btn-cancel{padding:10px 20px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:.9rem;cursor:pointer;transition:background .15s}
+    .btn-cancel:hover{background:rgba(255,255,255,.09);color:var(--text)}
+    .btn-save{padding:10px 24px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:0 4px 15px rgba(0,112,243,.35);transition:opacity .2s}
+    .btn-save:hover{opacity:.9}
+    .modal-ver .m-field input,
+    .modal-ver .m-field textarea{opacity:.6;pointer-events:none;cursor:default}
+    .modal-ver .csel-trigger{opacity:.6;pointer-events:none;cursor:default}
+    .modal-ver .prefix-wrap,.modal-ver .suffix-wrap{opacity:.6;pointer-events:none}
+    .modal-ver .btn-save{display:none!important}
+    .modal-ver .modal-footer .btn-cancel::before{content:""}
+    .modal-ver-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:4px 12px;font-size:.72rem;color:var(--accent);font-weight:700;letter-spacing:.8px;margin-left:10px;vertical-align:middle}
+    .suffix-wrap{display:flex;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;overflow:hidden;transition:border .2s,box-shadow .2s}
+    .suffix-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .suffix-wrap.error{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(255,77,109,.1)!important}
+    .suffix-wrap input{flex:1;background:transparent;border:none;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none}
+    .suffix-wrap input::placeholder{color:var(--text-muted)}
+    .input-suffix{padding:10px 14px 10px 10px;color:var(--accent);font-size:.9rem;font-weight:600;white-space:nowrap;background:rgba(0,212,255,.06);border-left:1px solid rgba(0,212,255,.15)}
+    .disk-section{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.12);border-radius:12px;padding:14px 16px}
+    .disk-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+    .disk-row{display:flex;align-items:center;gap:10px}
+    .disk-num{font-size:.72rem;font-weight:700;color:var(--accent);width:56px;flex-shrink:0;letter-spacing:.5px}
+    .disk-inp{flex:0 0 150px}
+    .disk-tipo{flex:1}
+    .disk-tipo select{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.88rem;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;color-scheme:dark;transition:border .2s}
+    .disk-tipo select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .disk-tipo select option{background:#111827}
+    .disk-rm{width:28px;height:28px;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.25);border-radius:7px;color:#f87171;cursor:pointer;font-size:.75rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s;padding:0}
+    .disk-rm:hover{background:rgba(255,77,109,.25)}
+    .btn-add-disk{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(0,212,255,.07);border:1px dashed rgba(0,212,255,.3);border-radius:10px;color:var(--accent);font-size:.82rem;cursor:pointer;transition:background .15s}
+    .btn-add-disk:hover{background:rgba(0,212,255,.14)}
+    .disk-tipo select.error{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(255,77,109,.1)!important}
+    .notif-ok{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:10px;padding:14px 18px;margin-bottom:18px;color:#34d399;font-size:.9rem;font-weight:600;animation:fadeIn .4s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="s-icon">⚙️</div>
+      <div><div class="s-name">T.I SISTEMA</div><div class="s-sub">Panel de Control</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">General</div>
+      <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
+      <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
+      <div class="nav-section-title">Soporte T.I</div>
+      <a href="{% url 'equipos_lista' %}" class="nav-item active"><span class="n-icon">🖥️</span> Equipos</a>
+      <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
+      <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <div class="nav-section-title">Administración</div>
+      <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
+      <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">{{ username|first|upper }}</div>
+        <div class="user-details">
+          <div class="u-name">{{ nombre }} {{ apellido }}</div>
+          <div class="u-role">{{ rol }}</div>
+        </div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <span class="topbar-title">Inventario de Equipos</span>
+      <div class="topbar-right">
+        <span class="topbar-time" id="clock">--:--:--</span>
+        <span class="role-tag role-usuario">{{ rol }}</span>
+      </div>
+    </header>
+    <div class="page-body">
+      {% if messages %}
+        {% for msg in messages %}
+        <div class="notif-ok">✅ {{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+      <div class="eq-stats">
+        <div class="eq-stat"><div class="eq-stat-icon ic-blue">🖥️</div><div><div class="eq-stat-val">{{ stats.total }}</div><div class="eq-stat-lbl">Total</div></div></div>
+        <div class="eq-stat"><div class="eq-stat-icon ic-green">✅</div><div><div class="eq-stat-val">{{ stats.activos }}</div><div class="eq-stat-lbl">Activos</div></div></div>
+        <div class="eq-stat"><div class="eq-stat-icon ic-red">❌</div><div><div class="eq-stat-val">{{ stats.inactivos }}</div><div class="eq-stat-lbl">Inactivos</div></div></div>
+        <div class="eq-stat"><div class="eq-stat-icon ic-blue">💻</div><div><div class="eq-stat-val">{{ stats.laptops }}</div><div class="eq-stat-lbl">Laptops</div></div></div>
+        <div class="eq-stat"><div class="eq-stat-icon ic-cyan">🖥</div><div><div class="eq-stat-val">{{ stats.pcs }}</div><div class="eq-stat-lbl">PCs</div></div></div>
+        <div class="eq-stat"><div class="eq-stat-icon ic-yellow">🗄</div><div><div class="eq-stat-val">{{ stats.servidores }}</div><div class="eq-stat-lbl">Servidores</div></div></div>
+        <div class="eq-stat"><div class="eq-stat-icon" style="background:rgba(168,85,247,.12)">🖨</div><div><div class="eq-stat-val">{{ stats.impresoras }}</div><div class="eq-stat-lbl">Impresoras</div></div></div>
+      </div>
+      <div class="eq-toolbar">
+        <div class="eq-filters">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Buscar por ID, nombre, serie, modelo, usuario...">
+          </div>
+          <select class="eq-select" id="filterTipo"><option value="">Todos los tipos</option><option value="Laptop">Laptop</option><option value="PC">PC</option><option value="Servidor">Servidor</option><option value="Impresora">Impresora</option></select>
+          <select class="eq-select" id="filterEstatus"><option value="">Todos los estatus</option><option value="ACT">Activo</option><option value="INA">Inactivo</option></select>
+        </div>
+        <button class="btn-nuevo" onclick="abrirModal()">＋ Nuevo Equipo</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Nombre / Área</th><th>Tipo</th>
+              <th>Marca / Modelo</th><th>No. Serie</th>
+              <th>Usuario Asignado</th><th>Estatus</th>
+              <th style="text-align:center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="equiposTbody">
+            {% for eq in equipos %}
+            <tr data-tipo="{{ eq.2 }}" data-estatus="{{ eq.7 }}">
+              <td class="td-id">{{ eq.0 }}</td>
+              <td class="td-nombre">
+                <strong>{{ eq.1 }}</strong>
+                <span>{{ eq.3|default:"" }}{% if eq.3 and eq.4 %} / {% endif %}{{ eq.4|default:"" }}</span>
+              </td>
+              <td>
+                {% if eq.2 == 'Laptop' %}<span class="tbadge tb-laptop">Laptop</span>
+                {% elif eq.2 == 'PC' %}<span class="tbadge tb-pc">PC</span>
+                {% elif eq.2 == 'Servidor' %}<span class="tbadge tb-servidor">Servidor</span>
+                {% elif eq.2 == 'Impresora' %}<span class="tbadge tb-impresora">Impresora</span>
+                {% else %}<span class="tbadge">{{ eq.2 }}</span>{% endif %}
+              </td>
+              <td>{{ eq.3|default:"—" }} / {{ eq.4|default:"—" }}</td>
+              <td class="td-serie">{{ eq.5|default:"—" }}</td>
+              <td>
+                {% if eq.6 %}{{ eq.6 }}
+                {% elif eq.2 == 'Impresora' or eq.2 == 'Servidor' %}T.I
+                {% else %}Sin asignar{% endif %}
+              </td>
+              <td>
+                {% if eq.7 == 'ACT' %}<span class="ebadge eb-act">● ACTIVO</span>
+                {% else %}<span class="ebadge eb-ina">● INACTIVO</span>{% endif %}
+              </td>
+              <td><div class="actions">
+                <button onclick="verEquipo('{{ eq.0 }}')" class="ab ab-view">🔍</button>
+                <button onclick="editarEquipo('{{ eq.0 }}')" class="ab ab-edit">✏️</button>
+              </div></td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" style="text-align:center;padding:48px 16px;color:var(--text-muted)">
+                No hay equipos registrados. Da de alta el primero con <strong>＋ Nuevo Equipo</strong>.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="tbl-footer">
+          <span>Mostrando <strong id="contadorReg">{{ equipos|length }}</strong> registros</span>
+          <span>Total: {{ stats.total }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modalOverlay" onclick="cerrarFuera(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h2>Dar de Alta — Equipo</h2>
+      <button class="modal-close" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="val-alert" id="valAlert">
+        <div class="val-alert-title">⚠ Faltan los siguientes campos obligatorios:</div>
+        <ul id="valList"></ul>
+      </div>
+      <form id="equipoForm" method="POST"
+            action="{% url 'equipo_guardar' %}"
+            data-crear-url="{% url 'equipo_guardar' %}">
+        {% csrf_token %}
+        <div class="m-section">
+          <div class="m-section-title">Información General</div>
+          <div class="m-grid">
+            <div class="m-field">
+              <label>ID Equipo</label>
+              <input type="text" id="fIdEquipo" disabled placeholder="Auto-generado por el sistema">
+            </div>
+            <div class="m-field">
+              <label>Nombre del Equipo <span class="req">*</span></label>
+              <div class="prefix-wrap" id="wrapNombre">
+                <span class="input-prefix">CECSA-</span>
+                <input type="text" id="nombreNumero" placeholder="001" maxlength="3"
+                       inputmode="numeric" oninput="soloNumeros(this,3);syncNombre()">
+              </div>
+              <input type="hidden" name="nombre_equipo" id="nombreEquipo">
+            </div>
+            <div class="m-field">
+              <label>Tipo de Equipo <span class="req">*</span></label>
+              <div class="csel" id="cselTipo">
+                <div class="csel-trigger" onclick="toggleCsel('cselTipo')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="Laptop">Laptop</div>
+                  <div class="csel-option" data-value="PC">PC</div>
+                  <div class="csel-option" data-value="Servidor">Servidor</div>
+                  <div class="csel-option" data-value="Impresora">Impresora</div>
+                </div>
+                <input type="hidden" name="tipo_equipo" id="tipoEquipo">
+              </div>
+            </div>
+            <div class="tipo-hint" id="tipoHint" style="grid-column:1/-1">
+              ℹ️ Selecciona primero el <strong>Tipo de Equipo</strong> para desbloquear los demás campos.
+            </div>
+            <div class="m-field campo-bloqueado" id="wrapMarca">
+              <label>Marca <span class="req">*</span></label>
+              <input type="text" name="marca" id="fMarca" placeholder="Dell, HP, Lenovo, Epson..." maxlength="100">
+            </div>
+            <div class="m-field campo-bloqueado" id="wrapModelo">
+              <label>Modelo <span class="req">*</span></label>
+              <input type="text" name="modelo" id="fModelo" placeholder="Inspiron 15, ProDesk 400..." maxlength="200">
+            </div>
+            <div class="m-field campo-bloqueado" id="wrapSerie">
+              <label>Número de Serie <span class="req">*</span></label>
+              <input type="text" name="numero_serie_equipo" id="fSerie" placeholder="SN-XXXXXXXXX" maxlength="100">
+            </div>
+            <div class="m-field campo-bloqueado" id="wrapEstatus">
+              <label>Estatus <span class="req">*</span></label>
+              <div class="csel" id="cselEstatus">
+                <div class="csel-trigger" onclick="toggleCsel('cselEstatus')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="ACT">Activo</div>
+                  <div class="csel-option" data-value="INA">Inactivo</div>
+                </div>
+                <input type="hidden" name="estatus" id="fEstatus">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="m-section" id="sec-laptop" style="display:none">
+          <div class="m-section-title">Datos de Laptop</div>
+          <div class="m-grid">
+            <div class="m-field">
+              <label>¿Batería Integrada? <span class="req">*</span></label>
+              <div class="csel" id="cselBateria">
+                <div class="csel-trigger" onclick="toggleCsel('cselBateria')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="true">Integrada</div>
+                  <div class="csel-option" data-value="false">Extraíble</div>
+                </div>
+                <input type="hidden" name="bateria_integrada" id="batSelect">
+              </div>
+            </div>
+            <div class="m-field" id="campo-bat" style="display:none">
+              <label>No. Serie Batería <span class="req">*</span></label>
+              <input type="text" name="numero_serie_bateria" id="fBatSerie" placeholder="BAT-XXXXXXXXX" maxlength="100">
+            </div>
+            <div class="m-field">
+              <label>No. Serie Cargador <span class="req">*</span></label>
+              <input type="text" name="numero_serie_cargador" id="fCargador" placeholder="CAR-XXXXXXXXX" maxlength="100">
+            </div>
+          </div>
+        </div>
+        <div class="m-section" id="sec-specs" style="display:none">
+          <div class="m-section-title">Especificaciones Técnicas</div>
+          <div class="m-grid">
+            <div class="m-field">
+              <label>Procesador <span class="req">*</span></label>
+              <input type="text" name="procesador" id="fProc" placeholder="Intel Core i5-12th, Ryzen 5..." maxlength="100">
+            </div>
+            <div class="m-field">
+              <label>RAM <span class="req">*</span></label>
+              <div class="suffix-wrap" id="wrapRam">
+                <input type="text" id="fRamNum" placeholder="8" maxlength="2"
+                       inputmode="numeric" oninput="soloNumeros(this,5);syncRam()">
+                <span class="input-suffix">GB</span>
+              </div>
+              <input type="hidden" name="ram" id="fRam">
+            </div>
+            <div class="m-field" id="wrapAlmField">
+              <label>Almacenamiento <span class="req">*</span></label>
+              <div class="suffix-wrap" id="wrapAlm">
+                <input type="text" id="fAlmNum" placeholder="512" maxlength="6"
+                       inputmode="numeric" oninput="soloNumeros(this,6);syncAlm()">
+                <span class="input-suffix">GB</span>
+              </div>
+              <input type="hidden" name="almacenamiento" id="fAlm">
+            </div>
+            <div class="m-field" id="wrapAlmTipoField">
+              <label>Tipo Almacenamiento <span class="req">*</span></label>
+              <div class="csel" id="cselAlmTipo">
+                <div class="csel-trigger" onclick="toggleCsel('cselAlmTipo')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="SSD">SSD</div>
+                  <div class="csel-option" data-value="HDD">HDD</div>
+                  <div class="csel-option" data-value="M.2 NVMe">M.2 NVMe</div>
+                  <div class="csel-option" data-value="M.2 SATA">M.2 SATA</div>
+                  <div class="csel-option" data-value="eMMC">eMMC</div>
+                </div>
+                <input type="hidden" id="fAlmTipo" value="">
+              </div>
+            </div>
+            <div class="m-field" id="wrapBtnAlm2Field" style="display:flex;flex-direction:column;justify-content:flex-end">
+              <label style="visibility:hidden">.</label>
+              <button type="button" id="btnAlm2" onclick="toggleAlm2()"
+                style="padding:10px 14px;background:rgba(0,212,255,.07);border:1px dashed rgba(0,212,255,.3);border-radius:10px;color:var(--accent);font-size:.82rem;cursor:pointer;transition:background .15s;text-align:left">
+                ＋ Agregar 2do Disco
+              </button>
+            </div>
+            <div class="m-field" id="wrapAlm2" style="display:none">
+              <label>Almacenamiento 2</label>
+              <div class="suffix-wrap">
+                <input type="text" id="fAlmNum2" placeholder="1000" maxlength="6"
+                       inputmode="numeric" oninput="soloNumeros(this,6);syncAlm()">
+                <span class="input-suffix">GB</span>
+              </div>
+            </div>
+            <div class="m-field" id="wrapAlmTipo2" style="display:none">
+              <label>Tipo Almacenamiento 2</label>
+              <div class="csel" id="cselAlmTipo2">
+                <div class="csel-trigger" onclick="toggleCsel('cselAlmTipo2')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="SSD">SSD</div>
+                  <div class="csel-option" data-value="HDD">HDD</div>
+                  <div class="csel-option" data-value="M.2 NVMe">M.2 NVMe</div>
+                  <div class="csel-option" data-value="M.2 SATA">M.2 SATA</div>
+                  <div class="csel-option" data-value="eMMC">eMMC</div>
+                </div>
+                <input type="hidden" id="fAlmTipo2" value="">
+              </div>
+            </div>
+            <div class="m-field full" id="sec-discos-srv" style="display:none">
+              <label>Discos del Servidor <span class="req">*</span></label>
+              <div class="disk-section">
+                <div class="disk-list" id="diskList"></div>
+                <button type="button" class="btn-add-disk" onclick="addDisco()">＋ Agregar disco</button>
+              </div>
+            </div>
+            <div class="m-field" id="wrapSOField">
+              <label>Sistema Operativo <span class="req">*</span></label>
+              <input type="text" name="sistema_operativo" id="fSO" placeholder="Windows 11 Pro, Ubuntu..." maxlength="100">
+            </div>
+            <div class="m-field" id="campo-office" >
+              <label>Versión Office <span class="req">*</span></label>
+              <input type="text" name="version_office" id="fOffice" placeholder="Microsoft 365, Office 2021..." maxlength="100">
+            </div>
+          </div>
+        </div>
+        <div class="m-section" id="sec-asignacion" style="display:none">
+          <div class="m-section-title">Asignación <span style="font-size:.7rem;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(opcional)</span></div>
+          <div class="m-grid">
+            <div class="m-field">
+              <label>Usuario Asignado</label>
+              <input type="text" name="usuario_asignado" placeholder="GABRIEL ..." maxlength="200">
+            </div>
+            <div class="m-field">
+              <label>Área Asignada</label>
+              <div class="csel" id="cselArea">
+                <div class="csel-trigger" onclick="toggleCsel('cselArea')">
+                  <span class="csel-val csel-placeholder">— Selecciona —</span>
+                  <span class="csel-arrow">▾</span>
+                </div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="T.I">T.I</div>
+                  <div class="csel-option" data-value="SUPERVISORES">SUPERVISORES</div>
+                  <div class="csel-option" data-value="MECANICOS">MECANICOS</div>
+                  <div class="csel-option" data-value="S.S.P.A">S.S.P.A</div>
+                  <div class="csel-option" data-value="CALIDAD">CALIDAD</div>
+                  <div class="csel-option" data-value="PROGRAMACION">PROGRAMACION</div>
+                  <div class="csel-option" data-value="TELEMETRIA">TELEMETRIA</div>
+                  <div class="csel-option" data-value="COORDINACION">COORDINACION</div>
+                  <div class="csel-option" data-value="ELECTRICOS">ELECTRICOS</div>
+                  <div class="csel-option" data-value="ALMACEN">ALMACEN</div>
+                  <div class="csel-option" data-value="MONITOREO">MONITOREO</div>
+                  <div class="csel-option" data-value="ADMINISTRACION">ADMINISTRACION</div>
+                  <div class="csel-option" data-value="OBRA MECANICA">OBRA MECANICA</div>
+                  <div class="csel-option" data-value="CONTABILIDAD">CONTABILIDAD</div>
+                </div>
+                <input type="hidden" name="area_asignada" id="fAreaAsignada">
+              </div>
+            </div>
+            <div class="m-field">
+              <label>Fecha de Asignación</label>
+              <input type="datetime-local" name="fecha_asignacion" id="fFechaAsignacion">
+            </div>
+          </div>
+        </div>
+        <div class="m-section">
+          <div class="m-section-title">Observaciones <span style="font-size:.7rem;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(opcional)</span></div>
+          <div class="m-grid">
+            <div class="m-field full">
+              <label>Observación del Equipo</label>
+              <textarea name="observacion_equipo" placeholder="Estado físico, daños, detalles importantes..." maxlength="500"></textarea>
+            </div>
+            <div class="m-field full">
+              <label>Nota Interna T.I</label>
+              <textarea name="nota_equipo" placeholder="Notas adicionales para el área T.I..." maxlength="500"></textarea>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-save" onclick="validarYGuardar()">Dar de Alta</button>
+    </div>
+  </div>
+</div>
+<script>
+  const elClk = document.getElementById('clock');
+  function tick(){ elClk.textContent = new Date().toLocaleTimeString('es-MX'); }
+  tick(); setInterval(tick,1000);
+  function toggleCsel(id){
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('open');
+    document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
+    if(!isOpen) el.classList.add('open');
+  }
+  function initCsel(id, onChange){
+    const el = document.getElementById(id);
+    el.querySelectorAll('.csel-option').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        const val = opt.dataset.value;
+        const valEl = el.querySelector('.csel-val');
+        valEl.textContent = opt.textContent;
+        valEl.classList.toggle('csel-placeholder', !val);
+        el.querySelector('input[type=hidden]').value = val;
+        el.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+        opt.classList.add('selected');
+        el.classList.remove('open');
+        el.classList.remove('error');
+        if(onChange) onChange(val);
+      });
+    });
+  }
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.csel')) document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
+  });
+  initCsel('cselTipo', val=>{ actualizarCampos(val); });
+  initCsel('cselEstatus', null);
+  initCsel('cselBateria', val=>{ actualizarBateria(val); });
+  initCsel('cselAlmTipo',  ()=>{ syncAlm(); });
+  initCsel('cselAlmTipo2', ()=>{ syncAlm(); });
+  initCsel('cselArea', null);
+  function setCsel(cselId, value, hiddenId){
+    const csel   = document.getElementById(cselId);
+    const hidden = document.getElementById(hiddenId);
+    const opt    = csel.querySelector(`[data-value="${value}"]`);
+    if(!opt) return;
+    const valEl = csel.querySelector('.csel-val');
+    valEl.textContent = opt.textContent;
+    valEl.classList.remove('csel-placeholder');
+    hidden.value = value;
+    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    opt.classList.add('selected');
+    csel.classList.remove('error');
+  }
+  function _llenarCampos(d){
+    const form = document.getElementById('equipoForm');
+    document.getElementById('fIdEquipo').value = d.id_equipo;
+    const sufijo = d.nombre_equipo.startsWith('CECSA-') ? d.nombre_equipo.slice(6) : d.nombre_equipo;
+    document.getElementById('nombreNumero').value = sufijo;
+    document.getElementById('nombreEquipo').value = d.nombre_equipo;
+    if(d.tipo_equipo){ setCsel('cselTipo',d.tipo_equipo,'tipoEquipo'); actualizarCampos(d.tipo_equipo); }
+    document.getElementById('fMarca').value  = d.marca;
+    document.getElementById('fModelo').value = d.modelo;
+    document.getElementById('fSerie').value  = d.numero_serie_equipo;
+    if(d.estatus) setCsel('cselEstatus',d.estatus,'fEstatus');
+    if(d.bateria_integrada){ setCsel('cselBateria',d.bateria_integrada,'batSelect'); actualizarBateria(d.bateria_integrada); }
+    document.getElementById('fBatSerie').value = d.numero_serie_bateria;
+    document.getElementById('fCargador').value = d.numero_serie_cargador;
+    document.getElementById('fProc').value = d.procesador;
+    const ramNum = (d.ram||'').replace(/\s*GB.*/,'');
+    document.getElementById('fRamNum').value = ramNum;
+    document.getElementById('fRam').value    = d.ram;
+    if(d.tipo_equipo==='Servidor'){
+      document.getElementById('diskList').innerHTML='';
+      (d.almacenamiento||'').split(' + ').forEach(part=>{
+        const m=part.match(/^(\d+)\s+GB\s+(.+)$/);
+        if(m) addDisco(m[1],m[2]);
+      });
+      if(document.getElementById('diskList').children.length===0) addDisco();
+      document.getElementById('fAlm').value=d.almacenamiento;
+    } else {
+      const almParts=(d.almacenamiento||'').split(' + ');
+      const alm1M=almParts[0].match(/^(\d+)\s+GB\s+(.+)$/);
+      if(alm1M){ document.getElementById('fAlmNum').value=alm1M[1]; setCsel('cselAlmTipo',alm1M[2],'fAlmTipo'); }
+      if(almParts[1]){
+        const alm2M=almParts[1].match(/^(\d+)\s+GB\s+(.+)$/);
+        if(alm2M){ document.getElementById('fAlmNum2').value=alm2M[1]; setCsel('cselAlmTipo2',alm2M[2],'fAlmTipo2'); mostrarAlm2(); }
+      }
+      document.getElementById('fAlm').value=d.almacenamiento;
+    }
+    document.getElementById('fSO').value     = d.sistema_operativo;
+    document.getElementById('fOffice').value = d.version_office;
+    form.querySelector('[name=usuario_asignado]').value   = d.usuario_asignado;
+    if(d.area_asignada) setCsel('cselArea', d.area_asignada, 'fAreaAsignada');
+    document.getElementById('fFechaAsignacion').value = d.fecha_asignacion || '';
+    form.querySelector('[name=observacion_equipo]').value = d.observacion_equipo;
+    form.querySelector('[name=nota_equipo]').value        = d.nota_equipo;
+  }
+  function editarEquipo(id){
+    fetch(`/equipos/datos/${id}/`)
+      .then(r=>{ if(!r.ok) throw new Error(); return r.json(); })
+      .then(d=>{
+        document.getElementById('equipoForm').action = `/equipos/actualizar/${id}/`;
+        document.querySelector('.modal-header h2').textContent = `Editar Equipo — ${d.nombre_equipo}`;
+        document.querySelector('.btn-save').textContent = 'Guardar Cambios';
+        _llenarCampos(d);
+        abrirModal();
+      })
+      .catch(()=>alert('No se pudieron cargar los datos del equipo.'));
+  }
+  function verEquipo(id){
+    fetch(`/equipos/datos/${id}/`)
+      .then(r=>{ if(!r.ok) throw new Error(); return r.json(); })
+      .then(d=>{
+        document.querySelector('.modal-header h2').innerHTML =
+          `Ver Equipo — ${d.nombre_equipo} <span class="modal-ver-badge">👁 SOLO LECTURA</span>`;
+        document.querySelector('.btn-cancel').textContent = 'Cerrar';
+        document.getElementById('modal').classList.add('modal-ver');
+        _llenarCampos(d);
+        abrirModal();
+      })
+      .catch(()=>alert('No se pudieron cargar los datos del equipo.'));
+  }
+  function abrirModal(){
+    document.getElementById('modalOverlay').classList.add('open');
+    document.body.style.overflow='hidden';
+  }
+  function cerrarModal(){
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.body.style.overflow='';
+    const form = document.getElementById('equipoForm');
+    form.action = form.dataset.crearUrl;
+    document.querySelector('.modal-header h2').textContent = 'Dar de Alta — Equipo';
+    document.querySelector('.btn-save').textContent = 'Dar de Alta';
+    document.getElementById('fIdEquipo').value = '';
+    document.getElementById('modal').classList.remove('modal-ver');
+    document.querySelector('.btn-cancel').textContent = 'Cancelar';
+    limpiarErrores();
+    document.getElementById('equipoForm').reset();
+    document.getElementById('nombreNumero').value='';
+    document.getElementById('fRamNum').value='';
+    document.getElementById('fRam').value='';
+    document.getElementById('fAlmNum').value='';
+    document.getElementById('fAlm').value='';
+    document.getElementById('fAlmNum2').value='';
+    document.getElementById('wrapAlm2').style.display='none';
+    document.getElementById('wrapAlmTipo2').style.display='none';
+    document.getElementById('btnAlm2').textContent='＋ Agregar 2do disco';
+    resetCsel2();
+    document.getElementById('diskList').innerHTML='';
+    ['cselTipo','cselEstatus','cselBateria','cselArea'].forEach(id=>{
+      const el=document.getElementById(id);
+      el.querySelector('.csel-val').textContent='— Selecciona —';
+      el.querySelector('.csel-val').classList.add('csel-placeholder');
+      el.querySelector('input[type=hidden]').value='';
+      el.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    });
+    const cAlm=document.getElementById('cselAlmTipo');
+    cAlm.querySelector('.csel-val').textContent='— Selecciona —';
+    cAlm.querySelector('.csel-val').classList.add('csel-placeholder');
+    cAlm.querySelector('input[type=hidden]').value='';
+    cAlm.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    actualizarCampos('');
+  }
+  function cerrarFuera(e){
+    if(e.target===document.getElementById('modalOverlay')) cerrarModal();
+  }
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarModal(); });
+  function soloNumeros(el, max){
+    el.value = el.value.replace(/[^0-9]/g, '').slice(0, max);
+  }
+  function syncNombre(){
+    const num = document.getElementById('nombreNumero').value.trim();
+    document.getElementById('nombreEquipo').value = num ? 'CECSA-'+num : '';
+  }
+  function syncRam(){
+    const n = document.getElementById('fRamNum').value.trim();
+    document.getElementById('fRam').value = n ? n+' GB' : '';
+  }
+  function syncAlm(){
+    const n1 = document.getElementById('fAlmNum').value.trim();
+    const t1 = document.getElementById('fAlmTipo').value || 'SSD';
+    const n2 = document.getElementById('fAlmNum2').value.trim();
+    const t2 = document.getElementById('fAlmTipo2').value;
+    let val = n1 ? n1+' GB '+t1 : '';
+    if(n2 && t2) val += (val ? ' + ' : '') + n2+' GB '+t2;
+    document.getElementById('fAlm').value = val;
+  }
+  function toggleAlm2(){
+    const wrap2  = document.getElementById('wrapAlm2');
+    const wrapT2 = document.getElementById('wrapAlmTipo2');
+    const btn    = document.getElementById('btnAlm2');
+    const visible = wrap2.style.display !== 'none';
+    if(visible){
+      wrap2.style.display  = 'none';
+      wrapT2.style.display = 'none';
+      btn.textContent = '＋ Agregar 2do disco';
+      document.getElementById('fAlmNum2').value = '';
+      resetCsel2();
+      syncAlm();
+    } else {
+      wrap2.style.display  = '';
+      wrapT2.style.display = '';
+      btn.textContent = '✕ Quitar 2do Disco';
+    }
+  }
+  function mostrarAlm2(){
+    document.getElementById('wrapAlm2').style.display  = '';
+    document.getElementById('wrapAlmTipo2').style.display = '';
+    document.getElementById('btnAlm2').textContent = '✕ Quitar 2do Disco';
+  }
+  function addDisco(gbVal, tipoVal){
+    const list = document.getElementById('diskList');
+    const n    = list.children.length + 1;
+    const row  = document.createElement('div');
+    row.className = 'disk-row';
+    const tipos = ['SSD','HDD','M.2 NVMe','M.2 SATA','eMMC'];
+    const opts  = tipos.map(t=>`<option value="${t}"${tipoVal===t?' selected':''}>${t}</option>`).join('');
+    row.innerHTML = `
+      <span class="disk-num">Disco&nbsp;${n}</span>
+      <div class="suffix-wrap disk-inp">
+        <input type="text" placeholder="512" maxlength="6" inputmode="numeric"
+               value="${gbVal||''}" oninput="soloNumeros(this,6);syncDiscos()">
+        <span class="input-suffix">GB</span>
+      </div>
+      <div class="disk-tipo">
+        <select onchange="syncDiscos()">
+          <option value="">— Tipo —</option>${opts}
+        </select>
+      </div>
+      <button type="button" class="disk-rm" onclick="removeDisco(this)">✕</button>`;
+    list.appendChild(row);
+    syncDiscos();
+  }
+  function removeDisco(btn){
+    btn.closest('.disk-row').remove();
+    renumerarDiscos();
+    syncDiscos();
+  }
+  function renumerarDiscos(){
+    document.querySelectorAll('#diskList .disk-row').forEach((r,i)=>{
+      r.querySelector('.disk-num').textContent='Disco '+(i+1);
+    });
+  }
+  function syncDiscos(){
+    const parts=[];
+    document.querySelectorAll('#diskList .disk-row').forEach(row=>{
+      const gb=row.querySelector('input').value.trim();
+      const t=row.querySelector('select').value;
+      if(gb&&t) parts.push(gb+' GB '+t);
+    });
+    document.getElementById('fAlm').value=parts.join(' + ');
+  }
+  function resetCsel2(){
+    const c = document.getElementById('cselAlmTipo2');
+    c.querySelector('.csel-val').textContent = '— Selecciona —';
+    c.querySelector('.csel-val').classList.add('csel-placeholder');
+    c.querySelector('input[type=hidden]').value = '';
+    c.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+  }
+  function actualizarCampos(tipo){
+    const show = id => document.getElementById(id).style.display='block';
+    const hide = id => document.getElementById(id).style.display='none';
+    hide('sec-laptop'); hide('sec-specs'); hide('sec-asignacion');
+    document.getElementById('campo-office').style.display='block';
+    ['wrapAlmField','wrapAlmTipoField','wrapBtnAlm2Field'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.style.display='';
+    });
+    document.getElementById('sec-discos-srv').style.display='none';
+    const officeField=document.getElementById('campo-office');
+    officeField.parentElement.insertBefore(document.getElementById('wrapSOField'), officeField);
+    if(!tipo){
+      ['wrapMarca','wrapModelo','wrapSerie','wrapEstatus'].forEach(id=>document.getElementById(id).classList.add('campo-bloqueado'));
+      document.getElementById('tipoHint').classList.remove('hidden');
+      return;
+    }
+    ['wrapMarca','wrapModelo','wrapSerie','wrapEstatus'].forEach(id=>document.getElementById(id).classList.remove('campo-bloqueado'));
+    document.getElementById('tipoHint').classList.add('hidden');
+    if(tipo==='Laptop'){ show('sec-laptop'); show('sec-specs'); show('sec-asignacion'); }
+    else if(tipo==='PC'){ show('sec-specs'); show('sec-asignacion'); }
+    else if(tipo==='Servidor'){
+      show('sec-specs');
+      hide('campo-office');
+      ['wrapAlmField','wrapAlmTipoField','wrapBtnAlm2Field','wrapAlm2','wrapAlmTipo2'].forEach(id=>{
+        const el=document.getElementById(id); if(el) el.style.display='none';
+      });
+      const diskSec=document.getElementById('sec-discos-srv');
+      diskSec.style.display='';
+      diskSec.parentElement.insertBefore(document.getElementById('wrapSOField'), diskSec);
+      if(document.getElementById('diskList').children.length===0) addDisco();
+    }
+    limpiarErrores();
+  }
+  function actualizarBateria(val){
+    document.getElementById('campo-bat').style.display = val==='false' ? 'block':'none';
+  }
+  function limpiarErrores(){
+    document.querySelectorAll('.error').forEach(e=>e.classList.remove('error'));
+    document.getElementById('valAlert').classList.remove('show');
+    document.getElementById('valList').innerHTML='';
+  }
+  function marcarError(id, label, lista){
+    const el = document.getElementById(id);
+    if(el){
+      el.classList.add('error');
+      if(el.closest('.prefix-wrap')) el.closest('.prefix-wrap').classList.add('error');
+      if(el.closest('.suffix-wrap')) el.closest('.suffix-wrap').classList.add('error');
+    }
+    lista.push(label);
+  }
+  function marcarCselError(id, label, lista){
+    document.getElementById(id).classList.add('error');
+    lista.push(label);
+  }
+  function validarYGuardar(){
+    limpiarErrores();
+    const tipo   = document.getElementById('tipoEquipo').value;
+    const nombre = document.getElementById('nombreNumero').value.trim();
+    const errores = [];
+    if(!nombre)   marcarError('nombreNumero','Nombre del Equipo',errores);
+    if(!tipo)     marcarCselError('cselTipo','Tipo de Equipo',errores);
+    if(!document.getElementById('fMarca').value.trim())  marcarError('fMarca','Marca',errores);
+    if(!document.getElementById('fModelo').value.trim()) marcarError('fModelo','Modelo',errores);
+    if(!document.getElementById('fSerie').value.trim())  marcarError('fSerie','Número de Serie',errores);
+    if(!document.getElementById('fEstatus').value)       marcarCselError('cselEstatus','Estatus',errores);
+    if(tipo==='Laptop'){
+      if(!document.getElementById('batSelect').value)      marcarCselError('cselBateria','Batería Integrada',errores);
+      if(document.getElementById('batSelect').value==='false' &&
+         !document.getElementById('fBatSerie').value.trim()) marcarError('fBatSerie','No. Serie Batería',errores);
+      if(!document.getElementById('fCargador').value.trim()) marcarError('fCargador','No. Serie Cargador',errores);
+    }
+    if(tipo==='Laptop'||tipo==='PC'){
+      if(!document.getElementById('fProc').value.trim())   marcarError('fProc','Procesador',errores);
+      if(!document.getElementById('fRam').value.trim())    marcarError('fRamNum','RAM',errores);
+      if(!document.getElementById('fAlmNum').value.trim())  marcarError('fAlmNum','Almacenamiento (GB)',errores);
+      if(!document.getElementById('fAlmTipo').value)        marcarCselError('cselAlmTipo','Tipo Almacenamiento',errores);
+      if(!document.getElementById('fSO').value.trim())     marcarError('fSO','Sistema Operativo',errores);
+      if(!document.getElementById('fOffice').value.trim()) marcarError('fOffice','Versión Office',errores);
+    }
+    if(tipo==='Servidor'){
+      if(!document.getElementById('fProc').value.trim()) marcarError('fProc','Procesador',errores);
+      if(!document.getElementById('fRam').value.trim())  marcarError('fRamNum','RAM',errores);
+      const diskRows = document.querySelectorAll('#diskList .disk-row');
+      if(diskRows.length===0){
+        errores.push('Discos del Servidor — agrega al menos 1 disco');
+      } else {
+        diskRows.forEach((row,i)=>{
+          const gb  = row.querySelector('input').value.trim();
+          const t   = row.querySelector('select').value;
+          if(!gb){ row.querySelector('.suffix-wrap').classList.add('error'); errores.push(`Disco ${i+1} — falta la capacidad (GB)`); }
+          if(!t) { row.querySelector('select').classList.add('error');       errores.push(`Disco ${i+1} — falta el tipo`); }
+        });
+      }
+      if(!document.getElementById('fSO').value.trim()) marcarError('fSO','Sistema Operativo',errores);
+    }
+    if(errores.length>0){
+      const lista = document.getElementById('valList');
+      errores.forEach(e=>{ const li=document.createElement('li'); li.textContent=e; lista.appendChild(li); });
+      document.getElementById('valAlert').classList.add('show');
+      document.getElementById('modal').scrollTop=0;
+      return;
+    }
+    syncNombre();
+    document.getElementById('equipoForm').submit();
+  }
+  const searchInput   = document.getElementById('searchInput');
+  const filterTipo    = document.getElementById('filterTipo');
+  const filterEstatus = document.getElementById('filterEstatus');
+  function filtrarTabla(){
+    const q       = searchInput.value.toLowerCase().trim();
+    const tipo    = filterTipo.value;
+    const estatus = filterEstatus.value;
+    const rows    = document.querySelectorAll('#equiposTbody tr[data-tipo]');
+    let visible   = 0;
+    rows.forEach(row=>{
+      const texto  = row.textContent.toLowerCase();
+      const matchQ = !q || texto.includes(q);
+      const matchT = !tipo || row.dataset.tipo === tipo;
+      const matchE = !estatus || row.dataset.estatus === estatus;
+      const show   = matchQ && matchT && matchE;
+      row.style.display = show ? '' : 'none';
+      if(show) visible++;
+    });
+    document.getElementById('contadorReg').textContent = visible;
+  }
+  searchInput.addEventListener('input', filtrarTabla);
+  searchInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); filtrarTabla(); } });
+  filterTipo.addEventListener('change', filtrarTabla);
+  filterEstatus.addEventListener('change', filtrarTabla);
+</script>
+</body>
+</html>
