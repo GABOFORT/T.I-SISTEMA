@@ -1,0 +1,58 @@
+{% for t in tickets %}
+<tr data-estatus="{{ t.estatus }}" data-area="{{ t.area }}">
+  <td><span class="tk-id">#{{ t.id_ticket }}</span></td>
+  <td><span class="area-badge">{{ t.area|default:"—" }}</span></td>
+  <td>
+    <div class="tk-titulo">{{ t.titulo }}</div>
+    <div class="tk-desc">{{ t.descripcion|truncatechars:60 }}</div>
+  </td>
+  <td>
+    <div class="dirigido-wrap">
+      <div class="dir-avatar">{{ t.creador_nombre|first|upper }}</div>
+      <div class="dir-name">{{ t.creador_nombre }} {{ t.creador_apellido }} {{ t.creador_materno }}</div>
+    </div>
+  </td>
+  <td class="tc">
+    {% if t.estatus == 'PEN' %}<span class="sbadge sb-pendiente">Pendiente</span>
+    {% elif t.estatus == 'PRO' %}<span class="sbadge sb-proceso">En Proceso</span>
+    {% elif t.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
+    {% endif %}
+  </td>
+  <td class="fecha-cell">{{ t.fecha_cierre|date:"d/m/Y H:i" }}</td>
+  <td class="tc">
+    {% if rol_id == 'ti1' %}
+      {% if t.estatus == 'PEN' %}
+      <form method="POST" action="{% url 'ticket_atender' t.id_ticket %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-atender">Atender</button>
+      </form>
+      {% elif t.estatus_firmas == 'PEN' %}
+      <button type="button" class="btn-atender" data-id="{{ t.id_ticket }}" onclick="abrirModalAtencion(this)">Diagnosticar</button>
+      {% elif t.estatus_firmas == 'PTI' %}
+      <span class="sbadge sb-proceso">Falta firma usuario</span>
+      {% elif t.estatus_firmas == 'FIN' %}
+      <a href="{% url 'reporte_mantenimiento' t.id_ticket %}" target="_blank" class="btn-atender" style="text-decoration:none;display:inline-block">Reporte</a>
+      {% else %}
+      <span style="color:var(--text-muted);font-size:.78rem">—</span>
+      {% endif %}
+    {% else %}
+      {% if t.estatus_firmas == 'PTI' and t.es_propio %}
+      <button type="button" class="btn-atender" data-id="{{ t.id_ticket }}" onclick="abrirModalFirmaUsuario(this)">Firmar</button>
+      {% elif t.estatus_firmas == 'FIN' and t.es_propio %}
+      <a href="{% url 'reporte_mantenimiento' t.id_ticket %}" target="_blank" class="btn-atender" style="text-decoration:none;display:inline-block">Reporte</a>
+      {% else %}
+      <span style="color:var(--text-muted);font-size:.78rem">—</span>
+      {% endif %}
+    {% endif %}
+  </td>
+</tr>
+{% empty %}
+<tr>
+  <td colspan="7">
+    <div class="empty-state">
+      <div class="empty-icon"></div>
+      <div class="empty-txt">No hay tickets enviados todavía.</div>
+    </div>
+  </td>
+</tr>
+{% endfor %}
