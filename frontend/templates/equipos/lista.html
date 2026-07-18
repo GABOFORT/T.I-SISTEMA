@@ -209,6 +209,10 @@
       <a href="{% url 'equipos_lista' %}" class="nav-item active"><span class="n-icon">🖥️</span> Equipos</a>
       <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
       <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
       <div class="nav-section-title">Administración</div>
       <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
       <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
@@ -218,7 +222,7 @@
         <div class="user-avatar">{{ username|first|upper }}</div>
         <div class="user-details">
           <div class="u-name">{{ nombre }} {{ apellido }}</div>
-          <div class="u-role">{{ rol }}</div>
+          <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
         </div>
       </div>
       <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
@@ -229,10 +233,29 @@
       <span class="topbar-title">Inventario de Equipos</span>
       <div class="topbar-right">
         <span class="topbar-time" id="clock">--:--:--</span>
-        <span class="role-tag role-usuario">{{ rol }}</span>
+        <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
+        <div class="notif-bell-wrap">
+          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-head">
+              <span>Notificaciones</span>
+              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
+            </div>
+            <div class="notif-panel-list" id="notifList">
+              <div class="notif-empty">Sin notificaciones</div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
     <div class="page-body">
+      {% if not niveles.consultar %}
+      <style>.page-body > *:not(.aviso-sin-acceso){display:none !important}</style>
+      <div class="aviso-sin-acceso" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:90px 20px;text-align:center">
+        <div style="font-size:2.8rem;opacity:.35">🔒</div>
+        <div style="color:#94a3b8;font-size:1.02rem;font-weight:600">Sin nivel de acceso para consultar esta información.</div>
+      </div>
+      {% endif %}
       {% if messages %}
         {% for msg in messages %}
         <div class="notif-ok">✅ {{ msg }}</div>
@@ -256,7 +279,11 @@
           <select class="eq-select" id="filterTipo"><option value="">Todos los tipos</option><option value="Laptop">Laptop</option><option value="PC">PC</option><option value="Servidor">Servidor</option><option value="Impresora">Impresora</option></select>
           <select class="eq-select" id="filterEstatus"><option value="">Todos los estatus</option><option value="ACT">Activo</option><option value="INA">Inactivo</option></select>
         </div>
+        {% if niveles.crear %}
         <button class="btn-nuevo" onclick="abrirModal()">＋ Nuevo Equipo</button>
+        {% else %}
+        <button type="button" class="btn-nuevo btn-bloqueado">＋ Nuevo Equipo</button>
+        {% endif %}
       </div>
       <div class="tbl-wrap">
         <table>
@@ -296,7 +323,11 @@
               </td>
               <td><div class="actions">
                 <button onclick="verEquipo('{{ eq.0 }}')" class="ab ab-view">🔍</button>
+                {% if niveles.modificar %}
                 <button onclick="editarEquipo('{{ eq.0 }}')" class="ab ab-edit">✏️</button>
+                {% else %}
+                <button type="button" class="ab ab-edit btn-bloqueado">✏️</button>
+                {% endif %}
               </div></td>
             </tr>
             {% empty %}
@@ -963,5 +994,6 @@
   filterTipo.addEventListener('change', filtrarTabla);
   filterEstatus.addEventListener('change', filtrarTabla);
 </script>
+<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
 </body>
 </html>

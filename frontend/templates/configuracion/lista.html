@@ -102,6 +102,10 @@
       <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
       <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
       <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
       <div class="nav-section-title">Administración</div>
       <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
       <a href="{% url 'configuracion' %}" class="nav-item active"><span class="n-icon">⚙️</span> Configuración</a>
@@ -111,7 +115,7 @@
         <div class="user-avatar">{{ username|first|upper }}</div>
         <div class="user-details">
           <div class="u-name">{{ nombre }} {{ apellido }}</div>
-          <div class="u-role">{{ rol }}</div>
+          <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
         </div>
       </div>
       <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
@@ -122,10 +126,29 @@
       <span class="topbar-title">Configuración del Sistema</span>
       <div class="topbar-right">
         <span class="topbar-time" id="clock">--:--:--</span>
-        <span class="role-tag role-usuario">{{ rol }}</span>
+        <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
+        <div class="notif-bell-wrap">
+          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-head">
+              <span>Notificaciones</span>
+              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
+            </div>
+            <div class="notif-panel-list" id="notifList">
+              <div class="notif-empty">Sin notificaciones</div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
     <div class="page-body">
+      {% if not niveles.consultar %}
+      <style>.page-body > *:not(.aviso-sin-acceso){display:none !important}</style>
+      <div class="aviso-sin-acceso" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:90px 20px;text-align:center">
+        <div style="font-size:2.8rem;opacity:.35">🔒</div>
+        <div style="color:#94a3b8;font-size:1.02rem;font-weight:600">Sin nivel de acceso para consultar esta información.</div>
+      </div>
+      {% endif %}
       {% if messages %}
         {% for msg in messages %}
           {% if msg.tags == 'error' %}<div class="notif-err">⚠ {{ msg }}</div>
@@ -138,7 +161,11 @@
             <div class="cfg-sec-title">Niveles de Acceso</div>
             <div class="cfg-sec-sub">Define qué acciones puede realizar cada nivel (consultar, crear, modificar, eliminar, exportar, importar)</div>
           </div>
+          {% if niveles.crear %}
           <button class="btn-nuevo" onclick="abrirNivel()">＋ Nuevo Nivel</button>
+          {% else %}
+          <button type="button" class="btn-nuevo btn-bloqueado">＋ Nuevo Nivel</button>
+          {% endif %}
         </div>
         <div class="tbl-wrap">
           <table>
@@ -157,7 +184,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for n in niveles %}
+              {% for n in lista_niveles %}
               <tr>
                 <td class="id-mono">{{ n.id_nivel }}</td>
                 <td style="font-weight:600">{{ n.descripcion }}</td>
@@ -170,6 +197,7 @@
                 <td class="tc"><span class="perm-icon {% if n.importar %}pi-yes{% else %}pi-no{% endif %}">{% if n.importar %}✔{% else %}✘{% endif %}</span></td>
                 <td class="tc">
                   <div class="actions">
+                    {% if niveles.modificar %}
                     <button class="ab ab-edit" title="Editar"
                       data-id="{{ n.id_nivel }}"
                       data-desc="{{ n.descripcion }}"
@@ -181,6 +209,9 @@
                       data-exp="{{ n.exportar }}"
                       data-imp="{{ n.importar }}"
                       onclick="editarNivelBtn(this)">✏️</button>
+                    {% else %}
+                    <button type="button" class="ab ab-edit btn-bloqueado">✏️</button>
+                    {% endif %}
                   </div>
                 </td>
               </tr>
@@ -189,7 +220,7 @@
               {% endfor %}
             </tbody>
           </table>
-          <div class="tbl-footer"><span>{{ niveles|length }} nivel{% if niveles|length != 1 %}es{% endif %}</span></div>
+          <div class="tbl-footer"><span>{{ lista_niveles|length }} nivel{% if lista_niveles|length != 1 %}es{% endif %}</span></div>
         </div>
       </div>
       <hr class="cfg-divider">
@@ -199,7 +230,11 @@
             <div class="cfg-sec-title">Permisos</div>
             <div class="cfg-sec-sub">Agrupa un nombre de permiso con un nivel de acceso; este permiso se asigna a los roles</div>
           </div>
+          {% if niveles.crear %}
           <button class="btn-nuevo" onclick="abrirPermiso()">＋ Nuevo Permiso</button>
+          {% else %}
+          <button type="button" class="btn-nuevo btn-bloqueado">＋ Nuevo Permiso</button>
+          {% endif %}
         </div>
         <div class="tbl-wrap">
           <table>
@@ -221,12 +256,16 @@
                 <td>{% if p.nivel_desc %}<span class="nivel-badge">{{ p.id_nivel }} — {{ p.nivel_desc }}</span>{% else %}<span style="color:var(--text-muted);font-size:.8rem">—</span>{% endif %}</td>
                 <td class="tc">
                   <div class="actions">
+                    {% if niveles.modificar %}
                     <button class="ab ab-edit" title="Editar"
                       data-id="{{ p.id_permiso }}"
                       data-desc="{{ p.descripcion }}"
                       data-est="{{ p.estatus }}"
                       data-nivel="{{ p.id_nivel|default:'' }}"
                       onclick="editarPermisoBtn(this)">✏️</button>
+                    {% else %}
+                    <button type="button" class="ab ab-edit btn-bloqueado">✏️</button>
+                    {% endif %}
                   </div>
                 </td>
               </tr>
@@ -245,7 +284,11 @@
             <div class="cfg-sec-title">Roles</div>
             <div class="cfg-sec-sub">Cada rol tiene un permiso asignado; ese permiso define qué puede hacer el usuario con ese rol</div>
           </div>
+          {% if niveles.crear %}
           <button class="btn-nuevo" onclick="abrirRol()">＋ Nuevo Rol</button>
+          {% else %}
+          <button type="button" class="btn-nuevo btn-bloqueado">＋ Nuevo Rol</button>
+          {% endif %}
         </div>
         <div class="tbl-wrap">
           <table>
@@ -269,12 +312,16 @@
                 <td class="tc"><span class="count-badge">{{ r.total_usuarios }}</span></td>
                 <td class="tc">
                   <div class="actions">
+                    {% if niveles.modificar %}
                     <button class="ab ab-edit" title="Editar"
                       data-id="{{ r.id_rol }}"
                       data-desc="{{ r.descripcion }}"
                       data-est="{{ r.estatus }}"
                       data-permiso="{{ r.id_permiso|default:'' }}"
                       onclick="editarRolBtn(this)">✏️</button>
+                    {% else %}
+                    <button type="button" class="ab ab-edit btn-bloqueado">✏️</button>
+                    {% endif %}
                   </div>
                 </td>
               </tr>
@@ -436,7 +483,7 @@
               </div>
               <div class="csel-dropdown">
                 <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
-                {% for n in niveles %}
+                {% for n in lista_niveles %}
                 <div class="csel-option" data-value="{{ n.id_nivel }}">{{ n.id_nivel }} — {{ n.descripcion }}</div>
                 {% endfor %}
               </div>
@@ -596,12 +643,12 @@
     idField.value = id; idField.readOnly = true; idField.style.opacity = '.5';
     document.getElementById('fDescNivel').value = desc;
     setCsel('cselNivelEst', est);
-    document.getElementById('chkConsultar').checked = !!cons;
-    document.getElementById('chkCrear').checked     = !!cre;
-    document.getElementById('chkModificar').checked = !!mod;
-    document.getElementById('chkEliminar').checked  = !!eli;
-    document.getElementById('chkExportar').checked  = !!exp;
-    document.getElementById('chkImportar').checked  = !!imp;
+    document.getElementById('chkConsultar').checked = Number(cons) === 1;
+    document.getElementById('chkCrear').checked     = Number(cre) === 1;
+    document.getElementById('chkModificar').checked = Number(mod) === 1;
+    document.getElementById('chkEliminar').checked  = Number(eli) === 1;
+    document.getElementById('chkExportar').checked  = Number(exp) === 1;
+    document.getElementById('chkImportar').checked  = Number(imp) === 1;
     abrir('ovNivel');
   }
   function guardarNivel(){
@@ -692,5 +739,6 @@
     document.getElementById('formRol').submit();
   }
 </script>
+<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
 </body>
 </html>

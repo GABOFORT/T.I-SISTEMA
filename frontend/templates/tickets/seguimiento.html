@@ -139,6 +139,9 @@
       <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
       <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
       <a href="{% url 'tickets_seguimiento' %}" class="nav-item active"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
       <div class="nav-section-title">Administración</div>
       <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
       <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
@@ -146,6 +149,9 @@
       <div class="nav-section-title">General</div>
       <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Gestión de Tickets</a>
       <a href="{% url 'tickets_seguimiento' %}" class="nav-item active"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
       {% endif %}
     </nav>
     <div class="sidebar-footer">
@@ -180,6 +186,13 @@
       </div>
     </header>
     <div class="page-body">
+      {% if not niveles.consultar %}
+      <style>.page-body > *:not(.aviso-sin-acceso){display:none !important}</style>
+      <div class="aviso-sin-acceso" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:90px 20px;text-align:center">
+        <div style="font-size:2.8rem;opacity:.35">🔒</div>
+        <div style="color:#94a3b8;font-size:1.02rem;font-weight:600">Sin nivel de acceso para consultar esta información.</div>
+      </div>
+      {% endif %}
       {% if messages %}
         {% for msg in messages %}
           {% if msg.tags == 'error' %}<div class="notif-err">⚠ {{ msg }}</div>
@@ -341,7 +354,7 @@
   </div>
   <div class="fotos-panel" id="fotosPanel">
     <div class="fotos-panel-title">Evidencia Fotográfica <span style="font-size:.65rem;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(máx. 4, opcional)</span></div>
-    <div class="fotos-panel-grid">
+    <div class="fotos-panel-grid {% if not niveles.importar %}btn-bloqueado{% endif %}">
       <div class="foto-big-cell" id="imgCell1">
         <label class="foto-big-label" for="imagen1Input"><span class="no-foto">📷<br><small>Foto 1</small></span></label>
         <img id="imgPrev1" alt="">
@@ -363,10 +376,17 @@
         <button type="button" class="foto-big-clear" onclick="limpiarImg(4)">✕</button>
       </div>
     </div>
+    {% if niveles.importar %}
     <input type="file" class="foto-input" id="imagen1Input" accept="image/*" onchange="previewImg(this,1)">
     <input type="file" class="foto-input" id="imagen2Input" accept="image/*" onchange="previewImg(this,2)">
     <input type="file" class="foto-input" id="imagen3Input" accept="image/*" onchange="previewImg(this,3)">
     <input type="file" class="foto-input" id="imagen4Input" accept="image/*" onchange="previewImg(this,4)">
+    {% else %}
+    <input type="file" class="foto-input" id="imagen1Input" disabled>
+    <input type="file" class="foto-input" id="imagen2Input" disabled>
+    <input type="file" class="foto-input" id="imagen3Input" disabled>
+    <input type="file" class="foto-input" id="imagen4Input" disabled>
+    {% endif %}
   </div>
 </div>
 <div class="lb-overlay" id="lbOverlay" onclick="cerrarLb()">
@@ -472,23 +492,22 @@
   searchInput.addEventListener('input', filtrarTabla);
   filterArea.addEventListener('change', filtrarTabla);
   filterEstatus.addEventListener('change', filtrarTabla);
-
-  // ==== Auto-actualización de la tabla cada 5 segundos ====
   async function actualizarSeguimiento(){
     const modalAbierto = document.getElementById('modalOverlay')?.classList.contains('open')
       || document.getElementById('modalOverlayFirma')?.classList.contains('open');
     if(modalAbierto) return;
     try{
       const res = await fetch("{% url 'tickets_seguimiento_actualizacion' %}");
+      if(res.status === 403){ if(Number("{{ niveles.consultar|default:0 }}") === 1) location.reload(); return; }
+      if(res.ok && Number("{{ niveles.consultar|default:0 }}") === 0){ location.reload(); return; }
       if(!res.ok) return;
       const data = await res.json();
       document.getElementById('ticketsTbody').innerHTML = data.tbody_html;
       filtrarTabla();
-    }catch(e){ /* silencioso: se reintenta en el siguiente ciclo */ }
+    }catch(e){ }
   }
   setInterval(actualizarSeguimiento, 5000);
 
-  // ==== Firma de T.I (canvas) ====
   const canvasFirma = document.getElementById('canvasFirmaTi');
   const ctxFirma = canvasFirma.getContext('2d');
   let firmaStrokes = [];
@@ -525,7 +544,6 @@
     document.getElementById('firmaWrap').classList.remove('firmado');
   }
 
-  // ==== Dropdowns personalizados (csel) ====
   function toggleCsel(id){
     const el = document.getElementById(id);
     const isOpen = el.classList.contains('open');
@@ -572,11 +590,9 @@
   });
   ['cselTipoTicket','cselLugarActividad'].forEach(initCsel);
 
-  // ==== Lightbox ====
   function abrirLb(src){ document.getElementById('lbImg').src=src; document.getElementById('lbOverlay').classList.add('open'); }
   function cerrarLb(){ document.getElementById('lbOverlay').classList.remove('open'); }
 
-  // ==== Imágenes de evidencia ====
   let imgFiles = {1:null,2:null,3:null,4:null};
   function previewImg(input,n){
     const file = input.files[0];
@@ -600,7 +616,6 @@
   }
   function limpiarImgs(){ [1,2,3,4].forEach(limpiarImg); }
 
-  // ==== Modal de atención ====
   let atencionTicketId = null;
   function abrirModalAtencion(btn){
     atencionTicketId = btn.dataset.id;
@@ -700,7 +715,6 @@
   }
 
   if (ROL_ID !== 'ti1') {
-  // ==== Firma del Usuario (canvas) ====
   const canvasFirmaU = document.getElementById('canvasFirmaUsuario');
   const ctxFirmaU = canvasFirmaU.getContext('2d');
   let firmaStrokesU = [];
@@ -737,7 +751,6 @@
     document.getElementById('firmaWrapUsuario').classList.remove('firmado');
   };
 
-  // ==== Modal de firma de usuario ====
   let firmaTicketId = null;
   window.abrirModalFirmaUsuario = function(btn){
     firmaTicketId = btn.dataset.id;
@@ -806,9 +819,8 @@
       alert('Error al firmar. Intenta de nuevo.');
     }
   }
-
-  } // fin if (ROL_ID !== 'ti1')
+  } 
 </script>
-<script src="{% static 'js/notificaciones.js' %}"></script>
+<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
 </body>
 </html>

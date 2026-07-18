@@ -22,12 +22,20 @@
   <td class="tc">
     {% if rol_id == 'ti1' %}
       {% if t.estatus == 'PEN' %}
+      {% if niveles.modificar %}
       <form method="POST" action="{% url 'ticket_atender' t.id_ticket %}">
         {% csrf_token %}
         <button type="submit" class="btn-atender">Atender</button>
       </form>
+      {% else %}
+      <button type="button" class="btn-atender btn-bloqueado">Atender</button>
+      {% endif %}
       {% elif t.estatus_firmas == 'PEN' %}
+      {% if niveles.modificar %}
       <button type="button" class="btn-atender" data-id="{{ t.id_ticket }}" onclick="abrirModalAtencion(this)">Diagnosticar</button>
+      {% else %}
+      <button type="button" class="btn-atender btn-bloqueado">Diagnosticar</button>
+      {% endif %}
       {% elif t.estatus_firmas == 'PTI' %}
       <span class="sbadge sb-proceso">Falta firma usuario</span>
       {% elif t.estatus_firmas == 'FIN' %}
@@ -37,7 +45,11 @@
       {% endif %}
     {% else %}
       {% if t.estatus_firmas == 'PTI' and t.es_propio %}
+      {% if niveles.modificar %}
       <button type="button" class="btn-atender" data-id="{{ t.id_ticket }}" onclick="abrirModalFirmaUsuario(this)">Firmar</button>
+      {% else %}
+      <button type="button" class="btn-atender btn-bloqueado">Firmar</button>
+      {% endif %}
       {% elif t.estatus_firmas == 'FIN' and t.es_propio %}
       <a href="{% url 'reporte_mantenimiento' t.id_ticket %}" target="_blank" class="btn-atender" style="text-decoration:none;display:inline-block">Reporte</a>
       {% else %}

@@ -1,0 +1,686 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T.I Sistema — Reservación de {{ recurso_nombre }}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <style>
+    .cal-header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+    .cal-nav{display:flex;align-items:center;gap:14px}
+    .cal-nav button{width:36px;height:36px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:1.1rem;cursor:pointer;transition:border .2s}
+    .cal-nav button:hover{border-color:var(--accent)}
+    .cal-titulo{font-size:1.05rem;font-weight:800;letter-spacing:.5px;min-width:190px;text-align:center;text-transform:capitalize}
+    .cal-leyenda{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .ley-item{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;color:var(--text-muted)}
+    .ley-dot{width:11px;height:11px;border-radius:4px;display:inline-block}
+    .ley-libre{background:rgba(255,255,255,.14)}
+    .ley-pen{background:#fbbf24}
+    .ley-apr{background:#34d399}
+    .ley-cerrado{background:rgba(255,77,109,.5)}
+    .cal-horario-info{background:linear-gradient(135deg,rgba(0,112,243,.08),rgba(0,212,255,.04));border:1px solid rgba(0,212,255,.2);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:.82rem;color:var(--text-muted)}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+    .cal-dow{text-align:center;font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-muted);padding:6px 0}
+    .cal-cell{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;min-height:96px;padding:8px;cursor:pointer;transition:border .15s,transform .12s;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+    .cal-cell:hover{border-color:var(--accent);transform:translateY(-1px)}
+    .cal-cell.vacia{background:transparent;border:none;cursor:default}
+    .cal-cell.vacia:hover{transform:none}
+    .cal-cell.cerrada{background:rgba(255,77,109,.04);border-color:rgba(255,77,109,.15);cursor:not-allowed;opacity:.6}
+    .cal-cell.cerrada:hover{transform:none;border-color:rgba(255,77,109,.15)}
+    .cal-cell.pasada{opacity:.45;cursor:not-allowed}
+    .cal-cell.pasada:hover{transform:none;border-color:var(--border)}
+    .cal-cell.hoy{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
+    .cal-num{font-size:.85rem;font-weight:800}
+    .cal-cell.cerrada .cal-num::after{content:" · Cerrado";font-size:.62rem;font-weight:600;color:#f87171}
+    .chip{font-size:.62rem;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chip-pen{background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+    .chip-apr{background:rgba(0,229,160,.12);color:#34d399;border:1px solid rgba(0,229,160,.3)}
+    .chip-mas{background:rgba(255,255,255,.06);color:var(--text-muted);border:1px solid var(--border)}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+    .modal-overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.6),var(--glow)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);z-index:2}
+    .modal-header h2{font-size:1rem;font-weight:700;text-transform:capitalize}
+    .modal-close{width:34px;height:34px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
+    .modal-body{padding:22px 28px}
+    .modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:18px 28px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg-card)}
+    .m-section-title{font-size:.7rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);padding-bottom:10px;margin-bottom:14px;border-bottom:1px solid var(--border)}
+    .m-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .csel{position:relative;width:100%}
+    .csel-trigger{
+      display:flex;align-items:center;justify-content:space-between;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:10px;padding:10px 14px;
+      color:var(--text);font-size:.9rem;cursor:pointer;
+      user-select:none;transition:border .2s,box-shadow .2s;
+    }
+    .csel-trigger:hover{border-color:rgba(255,255,255,.2)}
+    .csel.open .csel-trigger{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+    .csel-placeholder{color:var(--text-muted)}
+    .csel-arrow{font-size:.75rem;color:var(--text-muted);transition:transform .2s}
+    .csel.open .csel-arrow{transform:rotate(180deg)}
+    .csel-dropdown{
+      position:fixed;
+      background:#111827;
+      border:1px solid rgba(0,212,255,.2);
+      border-radius:10px;
+      overflow-y:auto;
+      max-height:200px; 
+      z-index:9999;
+      box-shadow:0 12px 30px rgba(0,0,0,.5);
+      display:none;
+    }
+    .csel-dropdown::-webkit-scrollbar{width:5px}
+    .csel-dropdown::-webkit-scrollbar-track{background:transparent}
+    .csel-dropdown::-webkit-scrollbar-thumb{background:rgba(0,212,255,.25);border-radius:4px}
+    .csel-dropdown::-webkit-scrollbar-thumb:hover{background:rgba(0,212,255,.45)}
+    .csel.open .csel-dropdown{display:block}
+    .csel-option{
+      padding:10px 14px;font-size:.9rem;cursor:pointer;
+      color:var(--text-muted);
+      transition:background .12s,color .12s;
+    }
+    .csel-option:hover{background:rgba(0,212,255,.1);color:var(--text)}
+    .csel-option.selected{background:rgba(0,112,243,.2);color:var(--accent);font-weight:600}
+    .csel-option.placeholder-opt{color:var(--text-muted);font-style:italic}
+    .reserva-item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;margin-bottom:8px;flex-wrap:wrap}
+    .reserva-info{display:flex;flex-direction:column;gap:2px}
+    .reserva-hora{font-weight:800;font-size:.9rem}
+    .reserva-quien{font-size:.75rem;color:var(--text-muted)}
+    .reserva-motivo{font-size:.75rem;color:var(--text-muted);font-style:italic;margin-top:2px}
+    .sbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:.7rem;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+    .sb-pendiente{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+    .sb-apartado{background:rgba(0,229,160,.1);color:#34d399;border:1px solid rgba(0,229,160,.3)}
+    .res-acciones{display:flex;gap:8px;align-items:center}
+    .btn-mini{padding:6px 12px;border:none;border-radius:8px;font-size:.72rem;font-weight:700;cursor:pointer}
+    .btn-aut{background:linear-gradient(135deg,#059669,#34d399);color:#fff}
+    .btn-rec{background:rgba(255,77,109,.15);color:#f87171;border:1px solid rgba(255,77,109,.35)}
+    .rechazo-box{width:100%;margin-top:8px;display:none}
+    .rechazo-box.open{display:block}
+    .rechazo-box textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,77,109,.35);border-radius:10px;padding:9px 12px;color:var(--text);font-size:.85rem;outline:none;font-family:inherit;resize:vertical}
+    .rechazo-box .btn-mini{margin-top:8px}
+    .sin-reservas{font-size:.82rem;color:var(--text-muted);padding:14px 0;text-align:center}
+    .val-alert{display:none;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:12px 16px;margin-top:16px;color:#f87171;font-size:.83rem;font-weight:600}
+    .val-alert.show{display:block}
+    .btn-cancel{padding:10px 20px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:.9rem;cursor:pointer}
+    .btn-save{padding:10px 24px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer}
+    .btn-save:disabled{opacity:.6;cursor:default}
+    .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:13px 22px;font-size:.87rem;font-weight:600;z-index:3000;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;box-shadow:0 12px 34px rgba(0,0,0,.5)}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .toast.ok{border-color:rgba(0,229,160,.4);color:#34d399}
+    .toast.err{border-color:rgba(255,77,109,.4);color:#f87171}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="s-icon">⚙️</div>
+      <div><div class="s-name">T.I SISTEMA</div><div class="s-sub">Panel de Control</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      {% if rol_id == 'ti1' %}
+      <div class="nav-section-title">General</div>
+      <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
+      <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
+      <div class="nav-section-title">Soporte T.I</div>
+      <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
+      <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
+      <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item {% if recurso_slug == 'proyector' %}active{% endif %}"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item {% if recurso_slug == 'sala' %}active{% endif %}"><span class="n-icon">🏢</span> Sala de Juntas</a>
+      <div class="nav-section-title">Administración</div>
+      <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
+      <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
+      {% else %}
+      <div class="nav-section-title">General</div>
+      <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Gestión de Tickets</a>
+      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item {% if recurso_slug == 'proyector' %}active{% endif %}"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item {% if recurso_slug == 'sala' %}active{% endif %}"><span class="n-icon">🏢</span> Sala de Juntas</a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">{{ username|first|upper }}</div>
+        <div class="user-details">
+          <div class="u-name">{{ nombre }} {{ apellido }}</div>
+          <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
+        </div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <span class="topbar-title">Reservación de {{ recurso_nombre }}</span>
+      <div class="topbar-right">
+        <span class="topbar-time" id="clock">--:--:--</span>
+        <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
+        <div class="notif-bell-wrap">
+          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-head">
+              <span>Notificaciones</span>
+              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
+            </div>
+            <div class="notif-panel-list" id="notifList">
+              <div class="notif-empty">Sin notificaciones</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div class="page-body">
+      {% if not niveles.consultar %}
+      <style>.page-body > *:not(.aviso-sin-acceso){display:none !important}</style>
+      <div class="aviso-sin-acceso" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:90px 20px;text-align:center">
+        <div style="font-size:2.8rem;opacity:.35">🔒</div>
+        <div style="color:#94a3b8;font-size:1.02rem;font-weight:600">Sin nivel de acceso para consultar esta información.</div>
+      </div>
+      {% endif %}
+      <div class="cal-header">
+        <div class="cal-nav">
+          <button onclick="cambiarMes(-1)">‹</button>
+          <span class="cal-titulo" id="calTitulo">—</span>
+          <button onclick="cambiarMes(1)">›</button>
+        </div>
+        <div class="cal-leyenda">
+          <span class="ley-item"><span class="ley-dot ley-libre"></span> Libre</span>
+          <span class="ley-item"><span class="ley-dot ley-pen"></span> En espera</span>
+          <span class="ley-item"><span class="ley-dot ley-apr"></span> Apartado</span>
+          <span class="ley-item"><span class="ley-dot ley-cerrado"></span> Cerrado</span>
+        </div>
+      </div>
+      <div class="cal-horario-info">Horario para apartar: <strong>Lunes a viernes 8:00 – 17:00</strong> · <strong>Sábado 9:00 – 13:00</strong> · Domingo cerrado. Da clic en un día para ver los horarios y apartar.</div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalDia" onclick="if(event.target===this)cerrarModalDia()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="mdTitulo">—</h2>
+      <button class="modal-close" onclick="cerrarModalDia()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="m-section-title">Horarios de este día</div>
+      <div id="mdLista"></div>
+      <div id="mdFormWrap" style="margin-top:20px">
+        <div class="m-section-title">Apartar horario</div>
+        <div class="form-field" style="margin-bottom:16px">
+          <label>Tipo de recurso <span class="req">*</span></label>
+          <div class="csel" id="cselTipo">
+            <div class="csel-trigger" onclick="toggleCsel('cselTipo')">
+              <span class="csel-val csel-placeholder">— Selecciona —</span>
+              <span class="csel-arrow">▾</span>
+            </div>
+            <div class="csel-dropdown"></div>
+            <input type="hidden" id="fTipoRecurso" value="">
+          </div>
+        </div>
+        <div class="m-grid">
+          <div class="form-field">
+            <label>Hora de inicio <span class="req">*</span></label>
+            <div class="csel" id="cselHora">
+              <div class="csel-trigger" onclick="toggleCsel('cselHora')">
+                <span class="csel-val csel-placeholder">— Selecciona —</span>
+                <span class="csel-arrow">▾</span>
+              </div>
+              <div class="csel-dropdown"></div>
+              <input type="hidden" id="fHoraInicio" value="">
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Tiempo aproximado <span class="req">*</span></label>
+            <div class="csel" id="cselDur">
+              <div class="csel-trigger" onclick="toggleCsel('cselDur')">
+                <span class="csel-val csel-placeholder">— Selecciona —</span>
+                <span class="csel-arrow">▾</span>
+              </div>
+              <div class="csel-dropdown"></div>
+              <input type="hidden" id="fDuracion" value="">
+            </div>
+          </div>
+        </div>
+        <div class="form-field" style="margin-top:16px">
+          <label>Motivo de la solicitud <span class="req">*</span></label>
+          <textarea id="fMotivo" rows="2" maxlength="290" placeholder="¿Para qué lo vas a ocupar?"></textarea>
+        </div>
+        <div class="val-alert" id="mdError"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="cerrarModalDia()">Cerrar</button>
+      {% if niveles.crear %}
+      <button class="btn-save" id="btnApartar" onclick="guardarReserva()">Apartar</button>
+      {% else %}
+      <button type="button" class="btn-save btn-bloqueado" id="btnApartar">Apartar</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<form id="csrfForm" style="display:none">{% csrf_token %}</form>
+<div class="toast" id="toast"></div>
+
+<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
+<script>
+  const RECURSO = "{{ recurso_slug|escapejs }}";
+  const ES_TI = "{{ rol_id|escapejs }}" === "ti1";
+  const TIPOS = RECURSO === 'proyector'
+    ? ['Proyector', 'Sala de usos múltiples']
+    : ['Sala de juntas', 'Sala de usos múltiples', 'Gerencia'];
+  const NIVELES = {
+    crear: Number("{{ niveles.crear|default:0 }}"),
+    modificar: Number("{{ niveles.modificar|default:0 }}"),
+  };
+  const PUEDE_CONSULTAR = Number("{{ niveles.consultar|default:0 }}") === 1;
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  let anio, mes;             
+  let reservasPorFecha = {};
+  let fechaAbierta = null;
+
+  function getCsrf(){
+    const inp = document.querySelector('#csrfForm input[name="csrfmiddlewaretoken"]');
+    return inp ? inp.value : '';
+  }
+  function mostrarToast(msg, tipo){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (tipo || 'ok');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(()=>{ t.className = 'toast'; }, 4200);
+  }
+  function horarioDelDia(fecha){
+    const d = fecha.getDay();       
+    if(d === 0) return null;
+    if(d === 6) return {ini: 9*60, fin: 13*60};
+    return {ini: 8*60, fin: 17*60};
+  }
+  function minAHora(m){
+    return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+  }
+  function horaAMin(h){
+    const [hh, mm] = h.split(':').map(Number);
+    return hh*60 + mm;
+  }
+  function fmtClave(f){
+    return f.getFullYear() + '-' + String(f.getMonth()+1).padStart(2,'0') + '-' + String(f.getDate()).padStart(2,'0');
+  }
+  function tipoCorto(t){
+    if(!t) return '';
+    return t.replace('Sala de usos múltiples', 'U. múltiples').replace('Sala de juntas', 'S. juntas');
+  }
+
+  window.toggleCsel = function(id){
+    const el = document.getElementById(id);
+    const abierto = el.classList.contains('open');
+    document.querySelectorAll('.csel.open').forEach(c => c.classList.remove('open'));
+    if(!abierto){
+      el.classList.add('open');
+      const trigger = el.querySelector('.csel-trigger').getBoundingClientRect();
+      const dd = el.querySelector('.csel-dropdown');
+      dd.style.left = trigger.left + 'px';
+      dd.style.width = trigger.width + 'px';
+      dd.style.top = (trigger.bottom + 6) + 'px';
+      const alto = dd.offsetHeight;
+      if(trigger.bottom + 6 + alto > window.innerHeight - 8){
+        dd.style.top = Math.max(8, trigger.top - 6 - alto) + 'px';
+      }
+    }
+  };
+  function cerrarCsels(){
+    document.querySelectorAll('.csel.open').forEach(c => c.classList.remove('open'));
+  }
+  document.addEventListener('click', e => {
+    if(!e.target.closest('.csel')) cerrarCsels();
+  });
+  window.addEventListener('resize', cerrarCsels);
+  document.addEventListener('scroll', e => {
+    if(e.target !== document && e.target.closest && e.target.closest('.modal') && !e.target.classList.contains('csel-dropdown')) cerrarCsels();
+  }, true);
+  function llenarCsel(id, opciones, onChange){
+    const el = document.getElementById(id);
+    const dd = el.querySelector('.csel-dropdown');
+    const valEl = el.querySelector('.csel-val');
+    const hidden = el.querySelector('input[type=hidden]');
+    valEl.textContent = '— Selecciona —';
+    valEl.classList.add('csel-placeholder');
+    hidden.value = '';
+    dd.innerHTML = opciones.map(o =>
+      `<div class="csel-option${o.value === '' ? ' placeholder-opt' : ''}" data-value="${o.value}">${o.texto}</div>`
+    ).join('');
+    dd.querySelectorAll('.csel-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        const val = opt.dataset.value;
+        valEl.textContent = opt.textContent;
+        valEl.classList.toggle('csel-placeholder', !val);
+        hidden.value = val;
+        dd.querySelectorAll('.csel-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        el.classList.remove('open');
+        if(onChange) onChange(val);
+      });
+    });
+  }
+  function seleccionarCsel(id, valor){
+    const opt = Array.from(document.querySelectorAll('#' + id + ' .csel-option'))
+      .find(o => o.dataset.value === valor);
+    if(opt) opt.click();
+  }
+
+  let firmaDatos = null; 
+  async function cargarMes(silencioso){
+    try{
+      const res = await fetch(`/reservaciones/${RECURSO}/datos/?anio=${anio}&mes=${mes}`);
+      if(res.status === 403){ if(PUEDE_CONSULTAR) location.reload(); return; }
+      if(res.ok && !PUEDE_CONSULTAR){ location.reload(); return; }
+      const data = await res.json();
+      const firma = JSON.stringify(data.reservas || []);
+      if(silencioso && firma === firmaDatos) return;  
+      firmaDatos = firma;
+      reservasPorFecha = {};
+      (data.reservas || []).forEach(r => {
+        if(!reservasPorFecha[r.fecha]) reservasPorFecha[r.fecha] = [];
+        reservasPorFecha[r.fecha].push(r);
+      });
+      renderCalendario();
+      if(fechaAbierta) renderDia();
+    }catch(e){
+      if(!silencioso) mostrarToast('No se pudo cargar el calendario', 'err');
+    }
+  }
+
+  function renderCalendario(){
+    document.getElementById('calTitulo').textContent = MESES[mes-1] + ' ' + anio;
+    const diasEnMes = new Date(anio, mes, 0).getDate();
+    const offset = (new Date(anio, mes-1, 1).getDay() + 6) % 7; 
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    let html = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+    for(let i=0;i<offset;i++) html += '<div class="cal-cell vacia"></div>';
+    for(let d=1; d<=diasEnMes; d++){
+      const fecha = new Date(anio, mes-1, d);
+      const clave = fmtClave(fecha);
+      const lista = reservasPorFecha[clave] || [];
+      const esDomingo = fecha.getDay() === 0;
+      const esPasado = fecha < hoy;
+      const esHoy = fecha.getTime() === hoy.getTime();
+      let cls = 'cal-cell';
+      if(esDomingo) cls += ' cerrada';
+      else if(esPasado) cls += ' pasada';
+      if(esHoy) cls += ' hoy';
+      const chips = lista.slice(0,3).map(r => {
+        const etiqueta = tipoCorto(r.tipo_recurso) || (r.estatus==='APR' ? 'Apartado' : 'En espera');
+        return `<div class="chip ${r.estatus==='APR' ? 'chip-apr' : 'chip-pen'}">${r.hora_inicio} · ${etiqueta}</div>`;
+      }).join('') + (lista.length > 3 ? `<div class="chip chip-mas">+${lista.length-3} más</div>` : '');
+      const click = (esDomingo || esPasado) ? '' : `onclick="abrirDia('${clave}')"`;
+      html += `<div class="${cls}" ${click}><div class="cal-num">${d}</div>${chips}</div>`;
+    }
+    document.getElementById('calGrid').innerHTML = html;
+  }
+
+  function cambiarMes(delta){
+    mes += delta;
+    if(mes < 1){ mes = 12; anio--; }
+    if(mes > 12){ mes = 1; anio++; }
+    cargarMes();
+  }
+
+  function abrirDia(clave){
+    fechaAbierta = clave;
+    document.getElementById('fTipoRecurso').value = '';
+    document.getElementById('fHoraInicio').value = '';
+    document.getElementById('fDuracion').value = '';
+    document.getElementById('fMotivo').value = '';
+    renderDia();
+    document.getElementById('modalDia').classList.add('open');
+  }
+  function cerrarModalDia(){
+    fechaAbierta = null;
+    document.getElementById('modalDia').classList.remove('open');
+  }
+
+  function renderDia(){
+    const [y, m, d] = fechaAbierta.split('-').map(Number);
+    const fecha = new Date(y, m-1, d);
+    document.getElementById('mdTitulo').textContent =
+      DIAS[fecha.getDay()] + ' ' + d + ' de ' + MESES[m-1] + ' de ' + y;
+
+    const lista = (reservasPorFecha[fechaAbierta] || []).slice()
+      .sort((a,b)=> a.hora_inicio.localeCompare(b.hora_inicio));
+    const cont = document.getElementById('mdLista');
+    if(lista.length === 0){
+      cont.innerHTML = '<div class="sin-reservas">Todo el día está libre</div>';
+    } else {
+      cont.innerHTML = lista.map(r => {
+        const badge = r.estatus === 'APR'
+          ? '<span class="sbadge sb-apartado">Apartado</span>'
+          : '<span class="sbadge sb-pendiente">En espera</span>';
+        const quien = (r.tipo_recurso ? r.tipo_recurso + ' · ' : '')
+          + r.solicitante + (r.area ? ' · ' + r.area : '') + (r.es_propia ? ' (tuya)' : '');
+        const motivoHtml = r.motivo ? `<span class="reserva-motivo">“${r.motivo}”</span>` : '';
+        let acciones = '';
+        if(ES_TI && r.estatus === 'PEN' && !NIVELES.modificar){
+          acciones = `
+          <div class="res-acciones">
+            <button type="button" class="btn-mini btn-aut btn-bloqueado">✔ Autorizar</button>
+            <button type="button" class="btn-mini btn-rec btn-bloqueado">✖ Rechazar</button>
+          </div>`;
+        } else if(ES_TI && r.estatus === 'APR' && !NIVELES.modificar){
+          acciones = `
+          <div class="res-acciones">
+            <button type="button" class="btn-mini btn-rec btn-bloqueado">✖ Cancelar</button>
+          </div>`;
+        } else if(ES_TI && r.estatus === 'PEN'){
+          acciones = `
+          <div class="res-acciones">
+            <button class="btn-mini btn-aut" onclick="responder('${r.id}','APR')">✔ Autorizar</button>
+            <button class="btn-mini btn-rec" onclick="toggleRechazo('${r.id}')">✖ Rechazar</button>
+          </div>
+          <div class="rechazo-box" id="rech-${r.id}">
+            <textarea rows="2" maxlength="290" id="motivo-${r.id}" placeholder="Motivo del rechazo (obligatorio)..."></textarea>
+            <button class="btn-mini btn-rec" onclick="responder('${r.id}','REC')">Confirmar rechazo</button>
+          </div>`;
+        } else if(ES_TI && r.estatus === 'APR'){
+          acciones = `
+          <div class="res-acciones">
+            <button class="btn-mini btn-rec" onclick="toggleRechazo('${r.id}')">✖ Cancelar</button>
+          </div>
+          <div class="rechazo-box" id="rech-${r.id}">
+            <textarea rows="2" maxlength="290" id="motivo-${r.id}" placeholder="Motivo de la cancelación (obligatorio)..."></textarea>
+            <button class="btn-mini btn-rec" onclick="responder('${r.id}','CAN')">Confirmar cancelación</button>
+          </div>`;
+        }
+        return `<div class="reserva-item">
+          <div class="reserva-info">
+            <span class="reserva-hora">${r.hora_inicio} – ${r.hora_fin}</span>
+            <span class="reserva-quien">${quien}</span>
+            ${motivoHtml}
+          </div>
+          ${badge}
+          ${acciones}
+        </div>`;
+      }).join('');
+    }
+    armarFormulario(fecha, lista);
+  }
+  function ocupadosSegunTipo(lista, tipo){
+    return lista
+      .filter(r => RECURSO === 'proyector' || r.tipo_recurso === tipo)
+      .map(r => [horaAMin(r.hora_inicio), horaAMin(r.hora_fin)]);
+  }
+
+  function armarFormulario(fecha, lista){
+    const wrap = document.getElementById('mdFormWrap');
+    const btn = document.getElementById('btnApartar');
+    const horario = horarioDelDia(fecha);
+    const hoy0 = new Date(); hoy0.setHours(0,0,0,0);
+    document.getElementById('mdError').className = 'val-alert';
+    if(!horario || fecha < hoy0){
+      wrap.style.display = 'none'; btn.style.display = 'none';
+      return;
+    }
+    wrap.style.display = ''; btn.style.display = '';
+    const tipoPrevio = document.getElementById('fTipoRecurso').value;
+    const horaPrevia = document.getElementById('fHoraInicio').value;
+    const durPrevia = document.getElementById('fDuracion').value;
+    llenarCsel('cselTipo',
+      [{value:'', texto:'— Selecciona —'}].concat(TIPOS.map(t => ({value:t, texto:t}))),
+      () => armarHoras());
+    armarHoras();
+    if(tipoPrevio){
+      seleccionarCsel('cselTipo', tipoPrevio);
+      if(horaPrevia){
+        seleccionarCsel('cselHora', horaPrevia);   
+        if(durPrevia) seleccionarCsel('cselDur', durPrevia);
+      }
+    }
+  }
+
+  function armarHoras(){
+    const tipo = document.getElementById('fTipoRecurso').value;
+    const vacio = [{value:'', texto:'— Selecciona —'}];
+    if(!tipo){
+      llenarCsel('cselHora', vacio, () => actualizarDuraciones());
+      actualizarDuraciones();
+      return;
+    }
+    const [y, m, d] = fechaAbierta.split('-').map(Number);
+    const fecha = new Date(y, m-1, d);
+    const horario = horarioDelDia(fecha);
+    const lista = reservasPorFecha[fechaAbierta] || [];
+    const ocupados = ocupadosSegunTipo(lista, tipo);
+    const hoy0 = new Date(); hoy0.setHours(0,0,0,0);
+    const esHoy = fecha.getTime() === hoy0.getTime();
+    const ahora = new Date();
+    const minAhora = ahora.getHours()*60 + ahora.getMinutes();
+    const horas = [];
+    for(let t = horario.ini; t + 30 <= horario.fin; t += 30){
+      if(esHoy && t <= minAhora) continue;
+      const libre = !ocupados.some(([i, f]) => t < f && (t + 30) > i);
+      if(libre) horas.push(minAHora(t));
+    }
+    llenarCsel('cselHora',
+      vacio.concat(horas.map(h => ({value:h, texto:h}))),
+      () => actualizarDuraciones());
+    actualizarDuraciones();
+  }
+
+  function actualizarDuraciones(){
+    const valorHora = document.getElementById('fHoraInicio').value;
+    const vacio = [{value:'', texto:'— Selecciona —'}];
+    if(!valorHora){
+      llenarCsel('cselDur', vacio, null);
+      return;
+    }
+    const [y, m, d] = fechaAbierta.split('-').map(Number);
+    const fecha = new Date(y, m-1, d);
+    const horario = horarioDelDia(fecha);
+    const lista = reservasPorFecha[fechaAbierta] || [];
+    const ocupados = ocupadosSegunTipo(lista, document.getElementById('fTipoRecurso').value);
+    const inicio = horaAMin(valorHora);
+    let tope = horario.fin;
+    ocupados.forEach(([i, f]) => { if(i >= inicio + 30 && i < tope) tope = i; });
+    const ops = vacio.slice();
+    for(let dmin = 30; inicio + dmin <= tope; dmin += 30){
+      const h = Math.floor(dmin/60), mm = dmin % 60;
+      const txt = h === 0 ? '30 minutos' : (mm === 0 ? `${h} hora${h>1?'s':''}` : `${h}:${String(mm).padStart(2,'0')} horas`);
+      ops.push({value:String(dmin), texto:txt});
+    }
+    llenarCsel('cselDur', ops, null);
+  }
+
+  async function guardarReserva(){
+    const btn = document.getElementById('btnApartar');
+    const err = document.getElementById('mdError');
+    err.className = 'val-alert';
+    const tipo = document.getElementById('fTipoRecurso').value;
+    const hora = document.getElementById('fHoraInicio').value;
+    const dur = document.getElementById('fDuracion').value;
+    const motivo = document.getElementById('fMotivo').value.trim();
+    if(!tipo || !hora || !dur || !motivo){
+      err.textContent = '⚠ Completa el tipo de recurso, la hora, el tiempo aproximado y el motivo.';
+      err.className = 'val-alert show';
+      return;
+    }
+    btn.disabled = true;
+    try{
+      const fd = new FormData();
+      fd.append('recurso', RECURSO);
+      fd.append('fecha', fechaAbierta);
+      fd.append('hora_inicio', hora);
+      fd.append('duracion_min', dur);
+      fd.append('tipo_recurso', tipo);
+      fd.append('motivo', motivo);
+      const res = await fetch('/reservaciones/guardar/', {
+        method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd
+      });
+      const data = await res.json();
+      if(!res.ok || !data.ok){
+        err.textContent = '⚠ ' + (data.error || 'No se pudo guardar.');
+        err.className = 'val-alert show';
+        return;
+      }
+      cerrarModalDia();
+      mostrarToast('✅ Horario apartado, en espera de autorización de T.I.', 'ok');
+      cargarMes();
+    }catch(e){
+      err.textContent = '⚠ Error de conexión, inténtalo de nuevo.';
+      err.className = 'val-alert show';
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  window.toggleRechazo = function(id){
+    document.getElementById('rech-' + id).classList.toggle('open');
+  };
+
+  window.responder = async function(id, accion){
+    const necesitaMotivo = accion === 'REC' || accion === 'CAN';
+    const motivo = necesitaMotivo ? (document.getElementById('motivo-' + id).value || '').trim() : '';
+    if(necesitaMotivo && !motivo){
+      mostrarToast(accion === 'CAN' ? 'Escribe el motivo de la cancelación' : 'Escribe el motivo del rechazo', 'err');
+      return;
+    }
+    try{
+      const fd = new FormData();
+      fd.append('accion', accion);
+      fd.append('motivo', motivo);
+      const res = await fetch(`/reservaciones/responder/${id}/`, {
+        method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd
+      });
+      const data = await res.json();
+      if(!res.ok || !data.ok){
+        mostrarToast('⚠ ' + (data.error || 'No se pudo responder.'), 'err');
+        return;
+      }
+      mostrarToast(accion === 'APR' ? '✅ Reservación autorizada'
+        : accion === 'CAN' ? 'Reservación cancelada' : 'Reservación rechazada', 'ok');
+      cargarMes();
+    }catch(e){
+      mostrarToast('⚠ Error de conexión', 'err');
+    }
+  };
+
+  setInterval(()=>{
+    const el = document.getElementById('clock');
+    if(el) el.textContent = new Date().toLocaleTimeString('es-MX', {hour12:false});
+  }, 1000);
+  setInterval(() => cargarMes(true), 5000);
+
+  const hoyInit = new Date();
+  anio = hoyInit.getFullYear();
+  mes = hoyInit.getMonth() + 1;
+  cargarMes();
+</script>
+</body>
+</html>

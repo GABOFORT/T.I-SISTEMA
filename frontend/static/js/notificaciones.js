@@ -2,6 +2,7 @@
   let panelAbierto = false;
   let ultimoConteo = null;
   let audioCtx = null;
+  let nivelesConocidos = null;
 
   function obtenerAudioCtx(){
     if(!audioCtx){
@@ -14,9 +15,6 @@
     return audioCtx;
   }
 
-  // Los navegadores bloquean el audio hasta que el usuario interactúa
-  // con la página al menos una vez. "Calentamos" el contexto en la
-  // primera interacción para que ya esté listo cuando llegue una alerta.
   document.addEventListener('click', ()=>{ obtenerAudioCtx(); }, {once:true});
   document.addEventListener('keydown', ()=>{ obtenerAudioCtx(); }, {once:true});
 
@@ -62,6 +60,14 @@
       const res = await fetch('/notificaciones/lista/');
       if(!res.ok) return;
       const data = await res.json();
+      if(data.niveles){
+        const firma = JSON.stringify(data.niveles);
+        if(nivelesConocidos !== null && firma !== nivelesConocidos){
+          location.reload();
+          return;
+        }
+        nivelesConocidos = firma;
+      }
       const badge = document.getElementById('notifBadge');
       if(!badge) return;
       if(data.no_leidas > 0){

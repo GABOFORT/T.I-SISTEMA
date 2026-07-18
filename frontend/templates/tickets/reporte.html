@@ -42,6 +42,16 @@
       box-shadow: 0 4px 14px rgba(0,112,243,.35);
     }
     .btn-imprimir:hover { box-shadow: 0 6px 18px rgba(0,112,243,.45); }
+    .toolbar .btn-bloqueado { opacity: .45 !important; cursor: not-allowed !important; position: relative; z-index: 50; filter: grayscale(.6); }
+    .toolbar .btn-bloqueado:hover { transform: none !important; box-shadow: none !important; }
+    .toolbar .btn-bloqueado:hover::after {
+      content: 'Sin nivel de acceso';
+      position: absolute; top: calc(100% + 8px); bottom: auto; left: 50%; transform: translateX(-50%);
+      background: #1f2937; color: #f87171; font-size: .7rem; font-weight: 700;
+      padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,77,109,.4);
+      white-space: nowrap; z-index: 10000; box-shadow: 0 8px 20px rgba(0,0,0,.5);
+      pointer-events: none;
+    }
     table.encabezado { width: 100%; border-collapse: collapse; border: 2px solid #8ea6c4; }
     table.encabezado > tbody > tr > td { border: 2px solid #8ea6c4; padding: 0; vertical-align: middle; }
     .logo-cell { width: 26%; text-align: center; padding: 10px !important; }
@@ -49,7 +59,6 @@
     .meta-cell { padding: 0 !important; }
     .meta-cell table { width: 100%; height: 100%; border-collapse: collapse; }
     .meta-cell table td { border: none; border-right: 2px solid #8ea6c4; padding: 6px 12px; text-align: center; color: #000; font-size: 9pt !important; }
-    /* sin esto, los <b> y <span> internos caen en la regla general de 12pt */
     .meta-cell table td * { font-size: 9pt !important; }
     .meta-cell table tr td:last-child { border-right: none; }
     .meta-cell b { font-weight: 700; }
@@ -89,22 +98,21 @@
       body { background: #fff; }
       .toolbar { display: none; }
       .hoja { box-shadow: none; margin: 0; width: auto; min-height: 261.4mm; padding: 0; }
-      /* al imprimir la hoja pierde su padding lateral: sin esto el footer
-         sumaría 15mm extra por lado y saldría más angosto que el encabezado */
       .footer { left: 0; right: 0; }
     }
   </style>
 </head>
 <body>
-  {% if es_ti %}
   <div class="toolbar">
+    {% if niveles.exportar %}
     <a href="{% url 'reporte_mantenimiento_pdf' id_ticket %}" class="btn-guardar">💾 Guardar como PDF</a>
     <button class="btn-imprimir" onclick="imprimirPdf(this)">🖨️ Imprimir</button>
+    {% else %}
+    <a class="btn-guardar btn-bloqueado">💾 Guardar como PDF</a>
+    <button type="button" class="btn-imprimir btn-bloqueado">🖨️ Imprimir</button>
+    {% endif %}
   </div>
   <script>
-    // Imprime el PDF generado por el servidor (el mismo del botón Guardar) en
-    // lugar de la página web: al imprimir un PDF el navegador NO agrega la URL
-    // ni el número de página que sí inyecta al imprimir HTML.
     window.imprimirPdf = function(btn){
       const textoOriginal = btn.innerHTML;
       btn.disabled = true;
@@ -130,13 +138,11 @@
           marco.src = urlPdf;
         })
         .catch(function(){
-          // si el servidor no pudo generar el PDF, cae a la impresión normal
           restaurar();
           window.print();
         });
     };
   </script>
-  {% endif %}
   <div class="hoja">
     <table class="encabezado bloque-atomico">
       <tr>
@@ -248,16 +254,12 @@
       const encabezado = hojaOriginal.querySelector('table.encabezado');
       const footer = hojaOriginal.querySelector('.footer');
       const pxPorMm = 96 / 25.4;
-      const altoHojaMm = 279.4;       // alto carta
+      const altoHojaMm = 279.4;      
       const margenSupMm = 6, margenInfMm = 12;
       const altoUtilPx = (altoHojaMm - margenSupMm - margenInfMm) * pxPorMm;
       const alturaEncabezado = encabezado.offsetHeight;
       const alturaFooter = footer.offsetHeight;
-      // cada página reserva espacio para su encabezado y su footer repetidos
       const altoDisponiblePx = altoUtilPx - alturaEncabezado - alturaFooter;
-
-      // agrupa los bloques atómicos en páginas simuladas: el mismo criterio
-      // "si no cabe completo, se va entero a la siguiente" que aplica el PDF real.
       const bloques = Array.from(hojaOriginal.children)
         .filter(el => el.classList.contains('bloque-atomico') && el !== encabezado);
       const paginas = [[]];
@@ -267,8 +269,6 @@
         const cabeCompleto = alturaAcumulada === 0 || alturaAcumulada + alturaBloque <= altoDisponiblePx;
 
         if(!cabeCompleto && bloque.classList.contains('bloque-fotos')){
-          // no cabe la galería completa: reparte por filas de fotos, dejando
-          // en esta página las filas que sí quepan y las demás a la siguiente.
           const titulo = bloque.querySelector('.seccion-title');
           const grid = bloque.querySelector('.fotos-grid');
           const imgs = Array.from(grid.children);
@@ -293,9 +293,6 @@
 
           if(numFilasQueCaben > 0 && numFilasQueCaben < filas.length){
             const filasRestantes = filas.slice(numFilasQueCaben);
-            // altura calculada con los datos ya medidos (el elemento nuevo
-            // todavía no está insertado en la página, así que offsetHeight
-            // daría 0 si se midiera directo sobre él).
             const alturaContinuacion = filasRestantes.reduce(
               (acc, fila) => acc + Math.max(...fila.imgs.map(im => im.offsetHeight)), 0
             );
@@ -307,12 +304,11 @@
             imgsRestantes.forEach(im => gridContinuacion.appendChild(im));
             bloqueContinuacion.appendChild(gridContinuacion);
 
-            paginas[paginas.length - 1].push(bloque);   // título + filas que caben, se queda
-            paginas.push([bloqueContinuacion]);           // resto, a la siguiente hoja
+            paginas[paginas.length - 1].push(bloque);   
+            paginas.push([bloqueContinuacion]);           
             alturaAcumulada = alturaContinuacion;
             continue;
           }
-          // ninguna fila cupo: cae en el caso normal de abajo (todo el bloque se mueve)
         }
 
         if(!cabeCompleto){
@@ -323,9 +319,6 @@
         alturaAcumulada += alturaBloque;
       }
 
-      // arma cada hoja física: encabezado + contenido + footer, repitiendo
-      // encabezado y footer en todas. Fuerza el salto real justo en cada
-      // encabezado nuevo para que el PDF coincida con la vista previa.
       let referencia = hojaOriginal;
       const encabezados = [encabezado];
       paginas.forEach((grupo, idx) => {
@@ -344,7 +337,6 @@
         contenedor.appendChild(idx === paginas.length - 1 ? footer : footer.cloneNode(true));
       });
 
-      // actualiza "Página: X de Y" en cada encabezado según su posición real
       encabezados.forEach((enc, i) => {
         enc.querySelector('.pag-actual').textContent = i + 1;
         enc.querySelector('.pag-total').textContent = encabezados.length;

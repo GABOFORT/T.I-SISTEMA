@@ -1,600 +1,1363 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>T.I Sistema — Usuarios</title>
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
   <style>
-    .us-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
-    .us-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:14px;transition:border-color .2s,box-shadow .2s}
-    .us-stat:hover{border-color:var(--accent);box-shadow:var(--glow-sm)}
-    .us-stat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
-    .us-stat-val{font-size:1.5rem;font-weight:800;line-height:1}
-    .us-stat-lbl{font-size:.72rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
-    .us-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-    .us-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
-    .search-wrap{position:relative;flex:1;min-width:200px}
-    .search-wrap input{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px 9px 38px;color:var(--text);font-size:.87rem;outline:none;transition:border .2s}
-    .search-wrap input:focus{border-color:var(--accent)}
-    .search-wrap input::placeholder{color:var(--text-muted)}
-    .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.9rem;pointer-events:none}
-    .us-select{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--text);font-size:.87rem;outline:none;cursor:pointer;transition:border .2s;appearance:none;-webkit-appearance:none;color-scheme:dark}
-    .us-select:focus{border-color:var(--accent)}
-    .tbl-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
-    .tbl-wrap table{width:100%;border-collapse:collapse}
-    .tbl-wrap thead{background:linear-gradient(90deg,rgba(0,112,243,.1),rgba(0,212,255,.06));border-bottom:1px solid var(--border)}
-    .tbl-wrap th{padding:13px 16px;font-size:.72rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-muted);text-align:left;white-space:nowrap}
-    .tbl-wrap tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s}
-    .tbl-wrap tbody tr:hover{background:rgba(0,212,255,.04)}
-    .tbl-wrap tbody tr:last-child{border-bottom:none}
-    .tbl-wrap td{padding:12px 16px;font-size:.88rem;vertical-align:middle}
-    .td-id{font-size:.75rem;color:var(--text-muted);font-weight:700;font-family:monospace}
-    .td-user{display:flex;align-items:center;gap:10px}
-    .u-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:#fff;flex-shrink:0;letter-spacing:.5px}
-    .u-nombre{font-size:.9rem;font-weight:600;line-height:1.2}
-    .u-username{font-size:.74rem;color:var(--text-muted);font-family:monospace}
-    .td-email{font-size:.82rem;color:var(--text-muted)}
-    .td-tel{font-size:.82rem;color:var(--text-muted);font-family:monospace}
-    .rbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap}
-    .rb-admin{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.3)}
-    .rb-user{background:rgba(0,212,255,.1);color:var(--accent);border:1px solid rgba(0,212,255,.25)}
-    .rb-soporte{background:rgba(255,204,0,.12);color:#fbbf24;border:1px solid rgba(255,204,0,.25)}
-    .rb-default{background:rgba(255,255,255,.07);color:var(--text-muted);border:1px solid var(--border)}
-    .ebadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.5px}
-    .eb-act{background:rgba(0,229,160,.1);color:#34d399;border:1px solid rgba(0,229,160,.3)}
-    .eb-ina{background:rgba(255,77,109,.1);color:#f87171;border:1px solid rgba(255,77,109,.3)}
-    .actions{display:flex;gap:6px;align-items:center;justify-content:center}
-    .ab{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;font-size:.88rem;transition:background .15s,transform .1s;cursor:pointer;border:1px solid transparent}
-    .ab:hover{transform:scale(1.08)}
-    .ab-view{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.2)}
-    .ab-edit{background:rgba(255,204,0,.1);border-color:rgba(255,204,0,.2)}
-    .ab-view:hover{background:rgba(0,212,255,.2)}
-    .ab-edit:hover{background:rgba(255,204,0,.2)}
-    .tbl-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border);font-size:.8rem;color:var(--text-muted)}
-    .btn-nuevo{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 4px 15px rgba(0,112,243,.4);transition:opacity .2s,transform .1s}
-    .btn-nuevo:hover{opacity:.9;transform:translateY(-1px)}
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
-    .modal-overlay.open{opacity:1;pointer-events:all}
-    .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.6),var(--glow);transform:translateY(20px) scale(.97);transition:transform .25s}
-    .modal-overlay.open .modal{transform:translateY(0) scale(1)}
-    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);z-index:2}
-    .modal-header h2{font-size:1.05rem;font-weight:700}
-    .modal-close{width:34px;height:34px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:background .15s,color .15s}
-    .modal-close:hover{background:rgba(255,77,109,.15);color:var(--danger);border-color:rgba(255,77,109,.3)}
-    .modal-body{padding:24px 28px}
-    .modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:18px 28px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg-card)}
-    .val-alert{display:none;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:14px 16px;margin-bottom:20px}
-    .val-alert.show{display:block}
-    .val-alert-title{color:#f87171;font-size:.85rem;font-weight:700;margin-bottom:8px}
-    .val-alert ul{list-style:none;padding:0;margin:0}
-    .val-alert ul li{font-size:.82rem;color:#fca5a5;padding:2px 0}
-    .val-alert ul li::before{content:"→ ";color:#f87171}
-    .m-section{margin-bottom:22px}
-    .m-section-title{font-size:.73rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid var(--border)}
-    .m-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-    .m-field{display:flex;flex-direction:column;gap:7px}
-    .m-field.full{grid-column:1/-1}
-    .m-field label{font-size:.73rem;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)}
-    .req{color:var(--danger)}
-    .m-field input,.m-field select,.m-field textarea{
-      width:100%;box-sizing:border-box;
-      background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-      border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;
-      outline:none;font-family:inherit;appearance:none;-webkit-appearance:none;
-      color-scheme:dark;transition:border .2s,box-shadow .2s;
+    .us-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px
     }
-    .m-field input::placeholder,.m-field textarea::placeholder{color:var(--text-muted)}
-    .m-field input:focus,.m-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
-    .m-field input.error,.m-field select.error{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(255,77,109,.1)!important}
-    .pass-wrap{position:relative}
-    .pass-wrap input{padding-right:42px}
-    .pass-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:0;line-height:1;transition:color .15s}
-    .pass-eye:hover{color:var(--accent)}
-    .csel{position:relative;width:100%}
-    .csel-trigger{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;cursor:pointer;user-select:none;transition:border .2s,box-shadow .2s}
-    .csel-trigger:hover{border-color:rgba(255,255,255,.2)}
-    .csel.open .csel-trigger{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
-    .csel.error .csel-trigger{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(255,77,109,.1)!important}
-    .csel-placeholder{color:var(--text-muted)}
-    .csel-arrow{font-size:.75rem;color:var(--text-muted);transition:transform .2s}
-    .csel.open .csel-arrow{transform:rotate(180deg)}
-    .csel-dropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#111827;border:1px solid rgba(0,212,255,.2);border-radius:10px;overflow-y:auto;max-height:200px;z-index:9999;box-shadow:0 12px 30px rgba(0,0,0,.5);display:none}
-    .csel-dropdown::-webkit-scrollbar{width:5px}
-    .csel-dropdown::-webkit-scrollbar-thumb{background:rgba(0,212,255,.25);border-radius:4px}
-    .csel.open .csel-dropdown{display:block}
-    .csel-option{padding:10px 14px;font-size:.9rem;cursor:pointer;color:var(--text-muted);transition:background .12s,color .12s}
-    .csel-option:hover{background:rgba(0,212,255,.1);color:var(--text)}
-    .csel-option.selected{background:rgba(0,112,243,.2);color:var(--accent);font-weight:600}
-    .csel-option.placeholder-opt{font-style:italic}
-    .modal-ver .m-field input,.modal-ver .m-field select{opacity:.6;pointer-events:none}
-    .modal-ver .pass-wrap input{pointer-events:none}
-    .modal-ver .pass-eye{pointer-events:all!important;opacity:1!important}
-    .modal-ver .csel-trigger{opacity:.6;pointer-events:none}
-    .modal-ver .btn-save{display:none!important}
-    .modal-ver-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:4px 12px;font-size:.72rem;color:var(--accent);font-weight:700;letter-spacing:.8px;margin-left:10px;vertical-align:middle}
-    .btn-cancel{padding:10px 20px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:.9rem;cursor:pointer;transition:background .15s}
-    .btn-cancel:hover{background:rgba(255,255,255,.09);color:var(--text)}
-    .btn-save{padding:10px 24px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:0 4px 15px rgba(0,112,243,.35);transition:opacity .2s}
-    .btn-save:hover{opacity:.9}
-    .notif-ok{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:10px;padding:14px 18px;margin-bottom:18px;color:#34d399;font-size:.9rem;font-weight:600;animation:fadeIn .4s ease}
-    .notif-err{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:14px 18px;margin-bottom:18px;color:#f87171;font-size:.9rem;font-weight:600;animation:fadeIn .4s ease}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
+    .us-stat {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: border-color .2s, box-shadow .2s
+    }
+
+    .us-stat:hover {
+      border-color: var(--accent);
+      box-shadow: var(--glow-sm)
+    }
+
+    .us-stat-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      flex-shrink: 0
+    }
+
+    .us-stat-val {
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1
+    }
+
+    .us-stat-lbl {
+      font-size: .72rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+      text-transform: uppercase;
+      letter-spacing: .5px
+    }
+
+    .us-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap
+    }
+
+    .us-filters {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      flex: 1
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 200px
+    }
+
+    .search-wrap input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 14px 9px 38px;
+      color: var(--text);
+      font-size: .87rem;
+      outline: none;
+      transition: border .2s
+    }
+
+    .search-wrap input:focus {
+      border-color: var(--accent)
+    }
+
+    .search-wrap input::placeholder {
+      color: var(--text-muted)
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: .9rem;
+      pointer-events: none
+    }
+
+    .us-select {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 14px;
+      color: var(--text);
+      font-size: .87rem;
+      outline: none;
+      cursor: pointer;
+      transition: border .2s;
+      appearance: none;
+      -webkit-appearance: none;
+      color-scheme: dark
+    }
+
+    .us-select:focus {
+      border-color: var(--accent)
+    }
+
+    .tbl-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden
+    }
+
+    .tbl-wrap table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    .tbl-wrap thead {
+      background: linear-gradient(90deg, rgba(0, 112, 243, .1), rgba(0, 212, 255, .06));
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tbl-wrap th {
+      padding: 13px 16px;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: left;
+      white-space: nowrap
+    }
+
+    .tbl-wrap tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, .04);
+      transition: background .15s
+    }
+
+    .tbl-wrap tbody tr:hover {
+      background: rgba(0, 212, 255, .04)
+    }
+
+    .tbl-wrap tbody tr:last-child {
+      border-bottom: none
+    }
+
+    .tbl-wrap td {
+      padding: 12px 16px;
+      font-size: .88rem;
+      vertical-align: middle
+    }
+
+    .td-id {
+      font-size: .75rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      font-family: monospace
+    }
+
+    .td-user {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .u-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .85rem;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+      letter-spacing: .5px
+    }
+
+    .u-nombre {
+      font-size: .9rem;
+      font-weight: 600;
+      line-height: 1.2
+    }
+
+    .u-username {
+      font-size: .74rem;
+      color: var(--text-muted);
+      font-family: monospace
+    }
+
+    .td-email {
+      font-size: .82rem;
+      color: var(--text-muted)
+    }
+
+    .td-tel {
+      font-size: .82rem;
+      color: var(--text-muted);
+      font-family: monospace
+    }
+
+    .rbadge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 700;
+      white-space: nowrap
+    }
+
+    .rb-admin {
+      background: rgba(168, 85, 247, .15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, .3)
+    }
+
+    .rb-user {
+      background: rgba(0, 212, 255, .1);
+      color: var(--accent);
+      border: 1px solid rgba(0, 212, 255, .25)
+    }
+
+    .rb-soporte {
+      background: rgba(255, 204, 0, .12);
+      color: #fbbf24;
+      border: 1px solid rgba(255, 204, 0, .25)
+    }
+
+    .rb-default {
+      background: rgba(255, 255, 255, .07);
+      color: var(--text-muted);
+      border: 1px solid var(--border)
+    }
+
+    .ebadge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .5px
+    }
+
+    .eb-act {
+      background: rgba(0, 229, 160, .1);
+      color: #34d399;
+      border: 1px solid rgba(0, 229, 160, .3)
+    }
+
+    .eb-ina {
+      background: rgba(255, 77, 109, .1);
+      color: #f87171;
+      border: 1px solid rgba(255, 77, 109, .3)
+    }
+
+    .actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: center
+    }
+
+    .ab {
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: .88rem;
+      transition: background .15s, transform .1s;
+      cursor: pointer;
+      border: 1px solid transparent
+    }
+
+    .ab:hover {
+      transform: scale(1.08)
+    }
+
+    .ab-view {
+      background: rgba(0, 212, 255, .1);
+      border-color: rgba(0, 212, 255, .2)
+    }
+
+    .ab-edit {
+      background: rgba(255, 204, 0, .1);
+      border-color: rgba(255, 204, 0, .2)
+    }
+
+    .ab-view:hover {
+      background: rgba(0, 212, 255, .2)
+    }
+
+    .ab-edit:hover {
+      background: rgba(255, 204, 0, .2)
+    }
+
+    .tbl-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      font-size: .8rem;
+      color: var(--text-muted)
+    }
+
+    .btn-nuevo {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 4px 15px rgba(0, 112, 243, .4);
+      transition: opacity .2s, transform .1s
+    }
+
+    .btn-nuevo:hover {
+      opacity: .9;
+      transform: translateY(-1px)
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .75);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: all
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      width: 100%;
+      max-width: 720px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .6), var(--glow);
+      transform: translateY(20px) scale(.97);
+      transition: transform .25s
+    }
+
+    .modal-overlay.open .modal {
+      transform: translateY(0) scale(1)
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      z-index: 2
+    }
+
+    .modal-header h2 {
+      font-size: 1.05rem;
+      font-weight: 700
+    }
+
+    .modal-close {
+      width: 34px;
+      height: 34px;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: background .15s, color .15s
+    }
+
+    .modal-close:hover {
+      background: rgba(255, 77, 109, .15);
+      color: var(--danger);
+      border-color: rgba(255, 77, 109, .3)
+    }
+
+    .modal-body {
+      padding: 24px 28px
+    }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 18px 28px;
+      border-top: 1px solid var(--border);
+      position: sticky;
+      bottom: 0;
+      background: var(--bg-card)
+    }
+
+    .val-alert {
+      display: none;
+      background: rgba(255, 77, 109, .1);
+      border: 1px solid rgba(255, 77, 109, .3);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 20px
+    }
+
+    .val-alert.show {
+      display: block
+    }
+
+    .val-alert-title {
+      color: #f87171;
+      font-size: .85rem;
+      font-weight: 700;
+      margin-bottom: 8px
+    }
+
+    .val-alert ul {
+      list-style: none;
+      padding: 0;
+      margin: 0
+    }
+
+    .val-alert ul li {
+      font-size: .82rem;
+      color: #fca5a5;
+      padding: 2px 0
+    }
+
+    .val-alert ul li::before {
+      content: "→ ";
+      color: #f87171
+    }
+
+    .m-section {
+      margin-bottom: 22px
+    }
+
+    .m-section-title {
+      font-size: .73rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .m-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px
+    }
+
+    .m-field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px
+    }
+
+    .m-field.full {
+      grid-column: 1/-1
+    }
+
+    .m-field label {
+      font-size: .73rem;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      color: var(--text-muted)
+    }
+
+    .req {
+      color: var(--danger)
+    }
+
+    .m-field input,
+    .m-field select,
+    .m-field textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: .9rem;
+      outline: none;
+      font-family: inherit;
+      appearance: none;
+      -webkit-appearance: none;
+      color-scheme: dark;
+      transition: border .2s, box-shadow .2s;
+    }
+
+    .m-field input::placeholder,
+    .m-field textarea::placeholder {
+      color: var(--text-muted)
+    }
+
+    .m-field input:focus,
+    .m-field select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0, 212, 255, .08)
+    }
+
+    .m-field input.error,
+    .m-field select.error {
+      border-color: var(--danger) !important;
+      box-shadow: 0 0 0 3px rgba(255, 77, 109, .1) !important
+    }
+
+    .pass-wrap {
+      position: relative
+    }
+
+    .pass-wrap input {
+      padding-right: 42px
+    }
+
+    .pass-eye {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 1rem;
+      padding: 0;
+      line-height: 1;
+      transition: color .15s
+    }
+
+    .pass-eye:hover {
+      color: var(--accent)
+    }
+
+    .csel {
+      position: relative;
+      width: 100%
+    }
+
+    .csel-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: .9rem;
+      cursor: pointer;
+      user-select: none;
+      transition: border .2s, box-shadow .2s
+    }
+
+    .csel-trigger:hover {
+      border-color: rgba(255, 255, 255, .2)
+    }
+
+    .csel.open .csel-trigger {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0, 212, 255, .08)
+    }
+
+    .csel.error .csel-trigger {
+      border-color: var(--danger) !important;
+      box-shadow: 0 0 0 3px rgba(255, 77, 109, .1) !important
+    }
+
+    .csel-placeholder {
+      color: var(--text-muted)
+    }
+
+    .csel-arrow {
+      font-size: .75rem;
+      color: var(--text-muted);
+      transition: transform .2s
+    }
+
+    .csel.open .csel-arrow {
+      transform: rotate(180deg)
+    }
+
+    .csel-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: #111827;
+      border: 1px solid rgba(0, 212, 255, .2);
+      border-radius: 10px;
+      overflow-y: auto;
+      max-height: 200px;
+      z-index: 9999;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+      display: none
+    }
+
+    .csel-dropdown::-webkit-scrollbar {
+      width: 5px
+    }
+
+    .csel-dropdown::-webkit-scrollbar-thumb {
+      background: rgba(0, 212, 255, .25);
+      border-radius: 4px
+    }
+
+    .csel.open .csel-dropdown {
+      display: block
+    }
+
+    .csel-option {
+      padding: 10px 14px;
+      font-size: .9rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background .12s, color .12s
+    }
+
+    .csel-option:hover {
+      background: rgba(0, 212, 255, .1);
+      color: var(--text)
+    }
+
+    .csel-option.selected {
+      background: rgba(0, 112, 243, .2);
+      color: var(--accent);
+      font-weight: 600
+    }
+
+    .csel-option.placeholder-opt {
+      font-style: italic
+    }
+
+    .modal-ver .m-field input,
+    .modal-ver .m-field select {
+      opacity: .6;
+      pointer-events: none
+    }
+
+    .modal-ver .pass-wrap input {
+      pointer-events: none
+    }
+
+    .modal-ver .pass-eye {
+      pointer-events: all !important;
+      opacity: 1 !important
+    }
+
+    .modal-ver .csel-trigger {
+      opacity: .6;
+      pointer-events: none
+    }
+
+    .modal-ver .btn-save {
+      display: none !important
+    }
+
+    .modal-ver-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 212, 255, .1);
+      border: 1px solid rgba(0, 212, 255, .25);
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: .72rem;
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: .8px;
+      margin-left: 10px;
+      vertical-align: middle
+    }
+
+    .btn-cancel {
+      padding: 10px 20px;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-muted);
+      font-size: .9rem;
+      cursor: pointer;
+      transition: background .15s
+    }
+
+    .btn-cancel:hover {
+      background: rgba(255, 255, 255, .09);
+      color: var(--text)
+    }
+
+    .btn-save {
+      padding: 10px 24px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 112, 243, .35);
+      transition: opacity .2s
+    }
+
+    .btn-save:hover {
+      opacity: .9
+    }
+
+    .notif-ok {
+      background: rgba(0, 229, 160, .1);
+      border: 1px solid rgba(0, 229, 160, .3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      color: #34d399;
+      font-size: .9rem;
+      font-weight: 600;
+      animation: fadeIn .4s ease
+    }
+
+    .notif-err {
+      background: rgba(255, 77, 109, .1);
+      border: 1px solid rgba(255, 77, 109, .3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      color: #f87171;
+      font-size: .9rem;
+      font-weight: 600;
+      animation: fadeIn .4s ease
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
   </style>
 </head>
+
 <body>
-<div class="app-layout">
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <div class="s-icon">⚙️</div>
-      <div><div class="s-name">T.I SISTEMA</div><div class="s-sub">Panel de Control</div></div>
-    </div>
-    <nav class="sidebar-nav">
-      <div class="nav-section-title">General</div>
-      <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
-      <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
-      <div class="nav-section-title">Soporte T.I</div>
-      <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
-      <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
-      <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
-      <div class="nav-section-title">Administración</div>
-      <a href="{% url 'usuarios_lista' %}" class="nav-item active"><span class="n-icon">👥</span> Usuarios</a>
-      <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-info">
-        <div class="user-avatar">{{ username|first|upper }}</div>
-        <div class="user-details">
-          <div class="u-name">{{ nombre }} {{ apellido }}</div>
-          <div class="u-role">{{ rol }}</div>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="s-icon">⚙️</div>
+        <div>
+          <div class="s-name">T.I SISTEMA</div>
+          <div class="s-sub">Panel de Control</div>
         </div>
       </div>
-      <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
-    </div>
-  </aside>
-  <div class="main-content">
-    <header class="topbar">
-      <span class="topbar-title">Gestión de Usuarios</span>
-      <div class="topbar-right">
-        <span class="topbar-time" id="clock">--:--:--</span>
-        <span class="role-tag role-usuario">{{ rol }}</span>
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">General</div>
+        <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
+        <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
+        <div class="nav-section-title">Soporte T.I</div>
+        <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
+        <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
+        <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+        <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de
+          Tickets</a>
+        <div class="nav-section-title">Reservaciones</div>
+        <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar
+          Proyector</a>
+        <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
+        <div class="nav-section-title">Administración</div>
+        <a href="{% url 'usuarios_lista' %}" class="nav-item active"><span class="n-icon">👥</span> Usuarios</a>
+        <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar">{{ username|first|upper }}</div>
+          <div class="user-details">
+            <div class="u-name">{{ nombre }} {{ apellido }}</div>
+            <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
+          </div>
+        </div>
+        <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
       </div>
-    </header>
-    <div class="page-body">
-      {% if messages %}
+    </aside>
+    <div class="main-content">
+      <header class="topbar">
+        <span class="topbar-title">Gestión de Usuarios</span>
+        <div class="topbar-right">
+          <span class="topbar-time" id="clock">--:--:--</span>
+          <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
+          <div class="notif-bell-wrap">
+            <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge"
+                id="notifBadge" style="display:none">0</span></button>
+            <div class="notif-panel" id="notifPanel">
+              <div class="notif-panel-head">
+                <span>Notificaciones</span>
+                <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
+              </div>
+              <div class="notif-panel-list" id="notifList">
+                <div class="notif-empty">Sin notificaciones</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="page-body">
+        {% if not niveles.consultar %}
+        <style>
+          .page-body>*:not(.aviso-sin-acceso) {
+            display: none !important
+          }
+        </style>
+        <div class="aviso-sin-acceso"
+          style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:90px 20px;text-align:center">
+          <div style="font-size:2.8rem;opacity:.35">🔒</div>
+          <div style="color:#94a3b8;font-size:1.02rem;font-weight:600">Sin nivel de acceso para consultar esta
+            información.</div>
+        </div>
+        {% endif %}
+        {% if messages %}
         {% for msg in messages %}
-          {% if msg.tags == 'error' %}
-          <div class="notif-err">⚠ {{ msg }}</div>
+        {% if msg.tags == 'error' %}
+        <div class="notif-err">⚠ {{ msg }}</div>
+        {% else %}
+        <div class="notif-ok">✅ {{ msg }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        <div class="us-stats">
+          <div class="us-stat">
+            <div class="us-stat-icon ic-blue">👥</div>
+            <div>
+              <div class="us-stat-val">{{ stats.total }}</div>
+              <div class="us-stat-lbl">Total</div>
+            </div>
+          </div>
+          <div class="us-stat">
+            <div class="us-stat-icon ic-green">✅</div>
+            <div>
+              <div class="us-stat-val">{{ stats.activos }}</div>
+              <div class="us-stat-lbl">Activos</div>
+            </div>
+          </div>
+          <div class="us-stat">
+            <div class="us-stat-icon ic-red">❌</div>
+            <div>
+              <div class="us-stat-val">{{ stats.inactivos }}</div>
+              <div class="us-stat-lbl">Inactivos</div>
+            </div>
+          </div>
+          {% for rol_stat in stats.por_rol %}
+          <div class="us-stat">
+            <div class="us-stat-icon" style="background:rgba(168,85,247,.12)">🔑</div>
+            <div>
+              <div class="us-stat-val">{{ rol_stat.cantidad }}</div>
+              <div class="us-stat-lbl">{{ rol_stat.descripcion }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="us-toolbar">
+          <div class="us-filters">
+            <div class="search-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="searchInput" placeholder="Buscar por ID, nombre, username, email...">
+            </div>
+            <select class="us-select" id="filterRol">
+              <option value="">Todos los roles</option>
+              {% for r in roles %}
+              <option value="{{ r.id_rol }}">{{ r.descripcion }}</option>
+              {% endfor %}
+            </select>
+            <select class="us-select" id="filterEstatus">
+              <option value="">Todos los estatus</option>
+              <option value="ACT">Activo</option>
+              <option value="INA">Inactivo</option>
+            </select>
+          </div>
+          {% if niveles.crear %}
+          <button class="btn-nuevo" onclick="abrirModal()">＋ Nuevo Usuario</button>
           {% else %}
-          <div class="notif-ok">✅ {{ msg }}</div>
+          <button type="button" class="btn-nuevo btn-bloqueado">＋ Nuevo Usuario</button>
           {% endif %}
-        {% endfor %}
-      {% endif %}
-      <div class="us-stats">
-        <div class="us-stat">
-          <div class="us-stat-icon ic-blue">👥</div>
-          <div><div class="us-stat-val">{{ stats.total }}</div><div class="us-stat-lbl">Total</div></div>
         </div>
-        <div class="us-stat">
-          <div class="us-stat-icon ic-green">✅</div>
-          <div><div class="us-stat-val">{{ stats.activos }}</div><div class="us-stat-lbl">Activos</div></div>
-        </div>
-        <div class="us-stat">
-          <div class="us-stat-icon ic-red">❌</div>
-          <div><div class="us-stat-val">{{ stats.inactivos }}</div><div class="us-stat-lbl">Inactivos</div></div>
-        </div>
-        {% for rol_stat in stats.por_rol %}
-        <div class="us-stat">
-          <div class="us-stat-icon" style="background:rgba(168,85,247,.12)">🔑</div>
-          <div><div class="us-stat-val">{{ rol_stat.cantidad }}</div><div class="us-stat-lbl">{{ rol_stat.descripcion }}</div></div>
-        </div>
-        {% endfor %}
-      </div>
-      <div class="us-toolbar">
-        <div class="us-filters">
-          <div class="search-wrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="Buscar por ID, nombre, username, email...">
-          </div>
-          <select class="us-select" id="filterRol">
-            <option value="">Todos los roles</option>
-            {% for r in roles %}
-            <option value="{{ r.id_rol }}">{{ r.descripcion }}</option>
-            {% endfor %}
-          </select>
-          <select class="us-select" id="filterEstatus">
-            <option value="">Todos los estatus</option>
-            <option value="ACT">Activo</option>
-            <option value="INA">Inactivo</option>
-          </select>
-        </div>
-        <button class="btn-nuevo" onclick="abrirModal()">＋ Nuevo Usuario</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre / Usuario</th>
-              <th>Email</th>
-              <th>Teléfono</th>
-              <th>Rol</th>
-              <th>Estatus</th>
-              <th style="text-align:center">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="usuariosTbody">
-            {% for u in usuarios %}
-            <tr data-estatus="{{ u.8 }}" data-rol="{{ u.11 }}">
-              <td class="td-id">{{ u.0 }}</td>
-              <td>
-                <div class="td-user">
-                  <div class="u-avatar">{{ u.4|first|upper }}{{ u.5|first|upper }}</div>
-                  <div>
-                    <div class="u-nombre">{{ u.4 }} {{ u.5 }} {{ u.6 }}</div>
-                    <div class="u-username">@{{ u.1 }}</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nombre / Usuario</th>
+                <th>Email</th>
+                <th>Teléfono</th>
+                <th>Rol</th>
+                <th>Estatus</th>
+                <th style="text-align:center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="usuariosTbody">
+              {% for u in usuarios %}
+              <tr data-estatus="{{ u.8 }}" data-rol="{{ u.11 }}">
+                <td class="td-id">{{ u.0 }}</td>
+                <td>
+                  <div class="td-user">
+                    <div class="u-avatar">{{ u.4|first|upper }}{{ u.5|first|upper }}</div>
+                    <div>
+                      <div class="u-nombre">{{ u.4 }} {{ u.5 }} {{ u.6 }}</div>
+                      <div class="u-username">@{{ u.1 }}</div>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td class="td-email">{{ u.3|default:"—" }}</td>
-              <td class="td-tel">{{ u.7|default:"—" }}</td>
-              <td>
-                {% if u.12 %}
+                </td>
+                <td class="td-email">{{ u.3|default:"—" }}</td>
+                <td class="td-tel">{{ u.7|default:"—" }}</td>
+                <td>
+                  {% if u.12 %}
                   <span class="rbadge rb-default">{{ u.12 }}</span>
-                {% else %}
+                  {% else %}
                   <span style="color:var(--text-muted);font-size:.8rem">—</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if u.8 == 'ACT' %}<span class="ebadge eb-act">● ACTIVO</span>
-                {% else %}<span class="ebadge eb-ina">● INACTIVO</span>{% endif %}
-              </td>
-              <td><div class="actions">
-                <button onclick="verUsuario('{{ u.0 }}')" class="ab ab-view">🔍</button>
-                <button onclick="editarUsuario('{{ u.0 }}')" class="ab ab-edit">✏️</button>
-              </div></td>
-            </tr>
-            {% empty %}
-            <tr>
-              <td colspan="7" style="text-align:center;padding:48px 16px;color:var(--text-muted)">
-                No hay usuarios registrados. Da de alta el primero con <strong>＋ Nuevo Usuario</strong>.
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        <div class="tbl-footer">
-          <span>Mostrando <strong id="contadorReg">{{ usuarios|length }}</strong> registros</span>
-          <span>Total: {{ stats.total }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if u.8 == 'ACT' %}<span class="ebadge eb-act">● ACTIVO</span>
+                  {% else %}<span class="ebadge eb-ina">● INACTIVO</span>{% endif %}
+                </td>
+                <td>
+                  <div class="actions">
+                    <button onclick="verUsuario('{{ u.0 }}')" class="ab ab-view">🔍</button>
+                    {% if niveles.modificar %}
+                    <button onclick="editarUsuario('{{ u.0 }}')" class="ab ab-edit">✏️</button>
+                    {% else %}
+                    <button type="button" class="ab ab-edit btn-bloqueado">✏️</button>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" style="text-align:center;padding:48px 16px;color:var(--text-muted)">
+                  No hay usuarios registrados. Da de alta el primero con <strong>＋ Nuevo Usuario</strong>.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="tbl-footer">
+            <span>Mostrando <strong id="contadorReg">{{ usuarios|length }}</strong> registros</span>
+            <span>Total: {{ stats.total }}</span>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
-<div class="modal-overlay" id="modalOverlay" onclick="cerrarFuera(event)">
-  <div class="modal" id="modal">
-    <div class="modal-header">
-      <h2 id="modalTitulo">Dar de Alta — Usuario</h2>
-      <button class="modal-close" onclick="cerrarModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="val-alert" id="valAlert">
-        <div class="val-alert-title">⚠ Faltan los siguientes campos obligatorios:</div>
-        <ul id="valList"></ul>
+  <div class="modal-overlay" id="modalOverlay" onclick="cerrarFuera(event)">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h2 id="modalTitulo">Dar de Alta — Usuario</h2>
+        <button class="modal-close" onclick="cerrarModal()">✕</button>
       </div>
-      <form id="usuarioForm" method="POST"
-            action="{% url 'usuario_guardar' %}"
-            data-crear-url="{% url 'usuario_guardar' %}">
-        {% csrf_token %}
-        <div class="m-section">
-          <div class="m-section-title">Información de Acceso</div>
-          <div class="m-grid">
-            <div class="m-field">
-              <label>ID Usuario <span class="req">*</span></label>
-              <input type="text" name="id_usuario" id="fIdUsuario"
-                     placeholder="U0001" maxlength="5"
-                     oninput="soloAlfanum(this,5)" autocomplete="off">
-            </div>
-            <div class="m-field">
-              <label>Username <span class="req">*</span></label>
-              <input type="text" name="username" id="fUsername"
-                     placeholder="JPEREZ" maxlength="100"
-                     oninput="soloLetras(this)" autocomplete="off">
-            </div>
-            <div class="m-field" id="wrapPassword">
-              <label>Contraseña <span class="req">*</span> <span id="passHint" style="display:none;font-size:.68rem;color:var(--text-muted);text-transform:none;letter-spacing:0">(vacío = no cambia)</span></label>
-              <div class="pass-wrap">
-                <input type="password" name="password" id="fPassword"
-                       placeholder="••••••••" maxlength="100"
-                       oninput="soloMayus(this)" autocomplete="new-password">
-                <button type="button" class="pass-eye" onclick="togglePass()" id="eyeBtn">👁</button>
+      <div class="modal-body">
+        <div class="val-alert" id="valAlert">
+          <div class="val-alert-title">⚠ Faltan los siguientes campos obligatorios:</div>
+          <ul id="valList"></ul>
+        </div>
+        <form id="usuarioForm" method="POST" action="{% url 'usuario_guardar' %}"
+          data-crear-url="{% url 'usuario_guardar' %}">
+          {% csrf_token %}
+          <div class="m-section">
+            <div class="m-section-title">Información de Acceso</div>
+            <div class="m-grid">
+              <div class="m-field">
+                <label>ID Usuario <span class="req">*</span></label>
+                <input type="text" name="id_usuario" id="fIdUsuario" placeholder="U0001" maxlength="5"
+                  oninput="soloAlfanum(this,5)" autocomplete="off">
               </div>
-            </div>
-            <div class="m-field">
-              <label>Rol <span class="req">*</span></label>
-              <div class="csel" id="cselRol">
-                <div class="csel-trigger" onclick="toggleCsel('cselRol')">
-                  <span class="csel-val csel-placeholder">— Selecciona —</span>
-                  <span class="csel-arrow">▾</span>
-                </div>
-                <div class="csel-dropdown">
-                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
-                  {% for r in roles %}
-                  <div class="csel-option" data-value="{{ r.id_rol }}">{{ r.descripcion }}</div>
-                  {% endfor %}
-                </div>
-                <input type="hidden" name="fk_rol" id="fRol">
+              <div class="m-field">
+                <label>Username <span class="req">*</span></label>
+                <input type="text" name="username" id="fUsername" placeholder="JPEREZ" maxlength="100"
+                  oninput="soloLetras(this)" autocomplete="off">
               </div>
-            </div>
-            <div class="m-field">
-              <label>Estatus <span class="req">*</span></label>
-              <div class="csel" id="cselEstatus">
-                <div class="csel-trigger" onclick="toggleCsel('cselEstatus')">
-                  <span class="csel-val csel-placeholder">— Selecciona —</span>
-                  <span class="csel-arrow">▾</span>
+              <div class="m-field" id="wrapPassword">
+                <label>Contraseña <span class="req">*</span> <span id="passHint"
+                    style="display:none;font-size:.68rem;color:var(--text-muted);text-transform:none;letter-spacing:0">(vacío
+                    = no cambia)</span></label>
+                <div class="pass-wrap">
+                  <input type="password" name="password" id="fPassword" placeholder="••••••••" maxlength="100"
+                    oninput="soloMayus(this)" autocomplete="new-password">
+                  <button type="button" class="pass-eye" onclick="togglePass()" id="eyeBtn">👁</button>
                 </div>
-                <div class="csel-dropdown">
-                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
-                  <div class="csel-option" data-value="ACT">Activo</div>
-                  <div class="csel-option" data-value="INA">Inactivo</div>
+              </div>
+              <div class="m-field">
+                <label>Rol <span class="req">*</span></label>
+                <div class="csel" id="cselRol">
+                  <div class="csel-trigger" onclick="toggleCsel('cselRol')">
+                    <span class="csel-val csel-placeholder">— Selecciona —</span>
+                    <span class="csel-arrow">▾</span>
+                  </div>
+                  <div class="csel-dropdown">
+                    <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                    {% for r in roles %}
+                    <div class="csel-option" data-value="{{ r.id_rol }}">{{ r.descripcion }}</div>
+                    {% endfor %}
+                  </div>
+                  <input type="hidden" name="fk_rol" id="fRol">
                 </div>
-                <input type="hidden" name="estatus" id="fEstatus">
+              </div>
+              <div class="m-field">
+                <label>Estatus <span class="req">*</span></label>
+                <div class="csel" id="cselEstatus">
+                  <div class="csel-trigger" onclick="toggleCsel('cselEstatus')">
+                    <span class="csel-val csel-placeholder">— Selecciona —</span>
+                    <span class="csel-arrow">▾</span>
+                  </div>
+                  <div class="csel-dropdown">
+                    <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                    <div class="csel-option" data-value="ACT">Activo</div>
+                    <div class="csel-option" data-value="INA">Inactivo</div>
+                  </div>
+                  <input type="hidden" name="estatus" id="fEstatus">
+                </div>
+              </div>
+              <div class="m-field">
+                <label>Área <span style="font-size:.68rem;color:var(--text-muted)">(opcional)</span></label>
+                <div class="csel" id="cselArea">
+                  <div class="csel-trigger" onclick="toggleCsel('cselArea')">
+                    <span class="csel-val csel-placeholder">— Selecciona —</span>
+                    <span class="csel-arrow">▾</span>
+                  </div>
+                  <div class="csel-dropdown">
+                    <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                    <div class="csel-option" data-value="T.I">T.I</div>
+                    <div class="csel-option" data-value="SUPERVISORES">SUPERVISORES</div>
+                    <div class="csel-option" data-value="MECANICOS">MECANICOS</div>
+                    <div class="csel-option" data-value="S.S.P.A">S.S.P.A</div>
+                    <div class="csel-option" data-value="CALIDAD">CALIDAD</div>
+                    <div class="csel-option" data-value="PROGRAMACION">PROGRAMACION</div>
+                    <div class="csel-option" data-value="TELEMETRIA">TELEMETRIA</div>
+                    <div class="csel-option" data-value="COORDINACION">COORDINACION</div>
+                    <div class="csel-option" data-value="ELECTRICOS">ELECTRICOS</div>
+                    <div class="csel-option" data-value="ALMACEN">ALMACEN</div>
+                    <div class="csel-option" data-value="MONITOREO">MONITOREO</div>
+                    <div class="csel-option" data-value="ADMINISTRACION">ADMINISTRACION</div>
+                    <div class="csel-option" data-value="OBRA MECANICA">OBRA MECANICA</div>
+                    <div class="csel-option" data-value="CONTABILIDAD">CONTABILIDAD</div>
+                  </div>
+                  <input type="hidden" name="area" id="fArea">
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="m-section">
-          <div class="m-section-title">Datos Personales</div>
-          <div class="m-grid">
-            <div class="m-field">
-              <label>Nombre <span class="req">*</span></label>
-              <input type="text" name="nombre" id="fNombre"
-                     placeholder="JUAN" maxlength="100" oninput="soloMayus(this)">
-            </div>
-            <div class="m-field">
-              <label>Apellido Paterno <span class="req">*</span></label>
-              <input type="text" name="apellido_paterno" id="fPaterno"
-                     placeholder="PÉREZ" maxlength="100" oninput="soloMayus(this)">
-            </div>
-            <div class="m-field">
-              <label>Apellido Materno <span class="req">*</span></label>
-              <input type="text" name="apellido_materno" id="fMaterno"
-                     placeholder="GARCÍA" maxlength="100" oninput="soloMayus(this)">
-            </div>
-            <div class="m-field">
-              <label>Email <span style="font-size:.68rem;color:var(--text-muted)">(opcional)</span></label>
-              <input type="text" name="email" id="fEmail"
-                     placeholder="JPEREZ@EMPRESA.COM" maxlength="200" oninput="soloMayus(this)">
-            </div>
-            <div class="m-field">
-              <label>Teléfono <span class="req">*</span></label>
-              <input type="text" name="telefono" id="fTelefono"
-                     placeholder="6141234567" maxlength="10"
-                     inputmode="numeric" oninput="soloNumerosTel(this)">
+          <div class="m-section">
+            <div class="m-section-title">Datos Personales</div>
+            <div class="m-grid">
+              <div class="m-field">
+                <label>Nombre <span class="req">*</span></label>
+                <input type="text" name="nombre" id="fNombre" placeholder="JUAN" maxlength="100"
+                  oninput="soloMayus(this)">
+              </div>
+              <div class="m-field">
+                <label>Apellido Paterno <span class="req">*</span></label>
+                <input type="text" name="apellido_paterno" id="fPaterno" placeholder="PÉREZ" maxlength="100"
+                  oninput="soloMayus(this)">
+              </div>
+              <div class="m-field">
+                <label>Apellido Materno <span class="req">*</span></label>
+                <input type="text" name="apellido_materno" id="fMaterno" placeholder="GARCÍA" maxlength="100"
+                  oninput="soloMayus(this)">
+              </div>
+              <div class="m-field">
+                <label>Email <span style="font-size:.68rem;color:var(--text-muted)">(opcional)</span></label>
+                <input type="text" name="email" id="fEmail" placeholder="JPEREZ@EMPRESA.COM" maxlength="200"
+                  oninput="soloMayus(this)">
+              </div>
+              <div class="m-field">
+                <label>Teléfono <span class="req">*</span></label>
+                <input type="text" name="telefono" id="fTelefono" placeholder="6141234567" maxlength="10"
+                  inputmode="numeric" oninput="soloNumerosTel(this)">
+              </div>
             </div>
           </div>
-        </div>
-      </form>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn-save" onclick="validarYGuardar()">Dar de Alta</button>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn-save" onclick="validarYGuardar()">Dar de Alta</button>
+      </div>
     </div>
   </div>
-</div>
-<script>
-  const elClk = document.getElementById('clock');
-  function tick(){ elClk.textContent = new Date().toLocaleTimeString('es-MX'); }
-  tick(); setInterval(tick, 1000);
-  function toggleCsel(id){
-    const el = document.getElementById(id);
-    const isOpen = el.classList.contains('open');
-    document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
-    if(!isOpen) el.classList.add('open');
-  }
-  function initCsel(id, onChange){
-    const el = document.getElementById(id);
-    el.querySelectorAll('.csel-option').forEach(opt=>{
-      opt.addEventListener('click', ()=>{
-        const val = opt.dataset.value;
-        const valEl = el.querySelector('.csel-val');
-        valEl.textContent = opt.textContent;
-        valEl.classList.toggle('csel-placeholder', !val);
-        el.querySelector('input[type=hidden]').value = val;
-        el.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
-        opt.classList.add('selected');
-        el.classList.remove('open','error');
-        if(onChange) onChange(val);
-      });
-    });
-  }
-  document.addEventListener('click', e=>{
-    if(!e.target.closest('.csel')) document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
-  });
-  initCsel('cselRol', null);
-  initCsel('cselEstatus', null);
-  function setCsel(cselId, value, hiddenId){
-    const csel = document.getElementById(cselId);
-    const hidden = document.getElementById(hiddenId);
-    const opt = csel.querySelector(`[data-value="${value}"]`);
-    if(!opt) return;
-    const valEl = csel.querySelector('.csel-val');
-    valEl.textContent = opt.textContent;
-    valEl.classList.remove('csel-placeholder');
-    hidden.value = value;
-    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
-    opt.classList.add('selected');
-    csel.classList.remove('error');
-  }
-  function soloAlfanum(el, max){
-    const pos = el.selectionStart;
-    el.value = el.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, max);
-    el.setSelectionRange(pos, pos);
-    if(el.classList.contains('error') && el.value.length === max) el.classList.remove('error');
-  }
-  function soloLetras(el){
-    const pos = el.selectionStart;
-    el.value = el.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, '').toUpperCase();
-    el.setSelectionRange(pos, pos);
-  }
-  function soloMayus(el){
-    const pos = el.selectionStart;
-    el.value = el.value.toUpperCase();
-    el.setSelectionRange(pos, pos);
-  }
-  function soloNumerosTel(el){
-    el.value = el.value.replace(/[^0-9]/g, '').slice(0, 10);
-  }
-  function togglePass(){
-    const inp = document.getElementById('fPassword');
-    const btn = document.getElementById('eyeBtn');
-    const show = inp.type === 'password';
-    inp.type  = show ? 'text' : 'password';
-    btn.textContent = show ? '👁' : '👁';
-  }
-  function abrirModal(){
-    document.getElementById('modalOverlay').classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-  function cerrarModal(){
-    document.getElementById('modalOverlay').classList.remove('open');
-    document.body.style.overflow = '';
-    const form = document.getElementById('usuarioForm');
-    form.action = form.dataset.crearUrl;
-    document.getElementById('modalTitulo').textContent = 'Dar de Alta — Usuario';
-    document.querySelector('.btn-save').textContent = 'Dar de Alta';
-    document.getElementById('modal').classList.remove('modal-ver');
-    document.querySelector('.btn-cancel').textContent = 'Cancelar';
-    document.getElementById('fIdUsuario').value = '';
-    document.getElementById('fIdUsuario').readOnly = false;
-    document.getElementById('fIdUsuario').style.opacity = '';
-    document.getElementById('fPassword').type = 'password';
-    document.getElementById('fPassword').readOnly = false;
-    document.getElementById('passHint').style.display = 'none';
-    document.getElementById('eyeBtn').textContent = '👁';
-    limpiarErrores();
-    form.reset();
-    ['cselRol','cselEstatus'].forEach(id=>{
+  <script>
+    const elClk = document.getElementById('clock');
+    function tick() { elClk.textContent = new Date().toLocaleTimeString('es-MX'); }
+    tick(); setInterval(tick, 1000);
+    function toggleCsel(id) {
       const el = document.getElementById(id);
-      el.querySelector('.csel-val').textContent = '— Selecciona —';
-      el.querySelector('.csel-val').classList.add('csel-placeholder');
-      el.querySelector('input[type=hidden]').value = '';
-      el.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
-    });
-  }
-  function cerrarFuera(e){
-    if(e.target === document.getElementById('modalOverlay')) cerrarModal();
-  }
-  document.addEventListener('keydown', e=>{ if(e.key==='Escape') cerrarModal(); });
-  function _llenarCampos(d){
-    const idField = document.getElementById('fIdUsuario');
-    idField.value    = d.id_usuario;
-    idField.readOnly = true;
-    idField.style.opacity = '.5';
-    document.getElementById('fUsername').value   = d.username;
-    document.getElementById('fPassword').value   = d.password || '';
-    document.getElementById('fNombre').value     = d.nombre;
-    document.getElementById('fPaterno').value    = d.apellido_paterno;
-    document.getElementById('fMaterno').value    = d.apellido_materno;
-    document.getElementById('fEmail').value      = d.email;
-    document.getElementById('fTelefono').value   = d.telefono;
-    if(d.fk_rol)   setCsel('cselRol',    d.fk_rol,  'fRol');
-    if(d.estatus)  setCsel('cselEstatus', d.estatus, 'fEstatus');
-  }
-  function editarUsuario(id){
-    fetch(`/usuarios/datos/${id}/`)
-      .then(r=>{ if(!r.ok) throw new Error(); return r.json(); })
-      .then(d=>{
-        document.getElementById('usuarioForm').action = `/usuarios/actualizar/${id}/`;
-        document.getElementById('modalTitulo').textContent = `Editar Usuario — ${d.nombre} ${d.apellido_paterno} ${d.apellido_materno}`;
-        document.querySelector('.btn-save').textContent = 'Guardar Cambios';
-        document.getElementById('passHint').style.display = '';
-        _llenarCampos(d);
-        abrirModal();
-      })
-      .catch(()=>alert('No se pudieron cargar los datos del usuario.'));
-  }
-  function verUsuario(id){
-    fetch(`/usuarios/datos/${id}/`)
-      .then(r=>{ if(!r.ok) throw new Error(); return r.json(); })
-      .then(d=>{
-        document.getElementById('modalTitulo').innerHTML =
-          `Ver Usuario — ${d.nombre} ${d.apellido_paterno} ${d.apellido_materno} <span class="modal-ver-badge">👁 SOLO LECTURA</span>`;
-        document.querySelector('.btn-cancel').textContent = 'Cerrar';
-        document.getElementById('modal').classList.add('modal-ver');
-        _llenarCampos(d);
-        document.getElementById('fPassword').type = 'password';
-        document.getElementById('fPassword').readOnly = true;
-        abrirModal();
-      })
-      .catch(()=>alert('No se pudieron cargar los datos del usuario.'));
-  }
-  function limpiarErrores(){
-    document.querySelectorAll('.error').forEach(e=>e.classList.remove('error'));
-    document.getElementById('valAlert').classList.remove('show');
-    document.getElementById('valList').innerHTML = '';
-  }
-  function marcarError(id, label, lista){
-    const el = document.getElementById(id);
-    if(el) el.classList.add('error');
-    lista.push(label);
-  }
-  function marcarCselError(id, label, lista){
-    document.getElementById(id).classList.add('error');
-    lista.push(label);
-  }
-  function validarYGuardar(){
-    limpiarErrores();
-    const errores = [];
-    const esEdicion = document.getElementById('usuarioForm').action.includes('/actualizar/');
-    if(!esEdicion){
-      const idVal = document.getElementById('fIdUsuario').value.trim();
-      if(!idVal || idVal.length !== 5) marcarError('fIdUsuario','ID Usuario (debe ser exactamente 5 caracteres alfanuméricos)',errores);
+      const isOpen = el.classList.contains('open');
+      document.querySelectorAll('.csel.open').forEach(c => c.classList.remove('open'));
+      if (!isOpen) el.classList.add('open');
     }
-    if(!document.getElementById('fUsername').value.trim()) marcarError('fUsername','Username',errores);
-    if(!esEdicion && !document.getElementById('fPassword').value.trim()) marcarError('fPassword','Contraseña',errores);
-    if(!document.getElementById('fRol').value)     marcarCselError('cselRol','Rol',errores);
-    if(!document.getElementById('fEstatus').value) marcarCselError('cselEstatus','Estatus',errores);
-    if(!document.getElementById('fNombre').value.trim())  marcarError('fNombre','Nombre',errores);
-    if(!document.getElementById('fPaterno').value.trim()) marcarError('fPaterno','Apellido Paterno',errores);
-    if(!document.getElementById('fMaterno').value.trim()) marcarError('fMaterno','Apellido Materno',errores);
-    const tel = document.getElementById('fTelefono').value.trim();
-    if(!tel)           marcarError('fTelefono','Teléfono',errores);
-    else if(tel.length !== 10) marcarError('fTelefono','Teléfono (debe tener exactamente 10 dígitos)',errores);
-    if(errores.length > 0){
-      const lista = document.getElementById('valList');
-      errores.forEach(e=>{ const li=document.createElement('li'); li.textContent=e; lista.appendChild(li); });
-      document.getElementById('valAlert').classList.add('show');
-      document.getElementById('modal').scrollTop = 0;
-      return;
+    function initCsel(id, onChange) {
+      const el = document.getElementById(id);
+      el.querySelectorAll('.csel-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          const val = opt.dataset.value;
+          const valEl = el.querySelector('.csel-val');
+          valEl.textContent = opt.textContent;
+          valEl.classList.toggle('csel-placeholder', !val);
+          el.querySelector('input[type=hidden]').value = val;
+          el.querySelectorAll('.csel-option').forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          el.classList.remove('open', 'error');
+          if (onChange) onChange(val);
+        });
+      });
     }
-    document.getElementById('usuarioForm').submit();
-  }
-  const searchInput   = document.getElementById('searchInput');
-  const filterRol     = document.getElementById('filterRol');
-  const filterEstatus = document.getElementById('filterEstatus');
-  function filtrarTabla(){
-    const q       = searchInput.value.toLowerCase().trim();
-    const rol     = filterRol.value;
-    const estatus = filterEstatus.value;
-    const rows    = document.querySelectorAll('#usuariosTbody tr[data-estatus]');
-    let visible   = 0;
-    rows.forEach(row=>{
-      const texto  = row.textContent.toLowerCase();
-      const matchQ = !q || texto.includes(q);
-      const matchR = !rol || row.dataset.rol === rol;
-      const matchE = !estatus || row.dataset.estatus === estatus;
-      const show   = matchQ && matchR && matchE;
-      row.style.display = show ? '' : 'none';
-      if(show) visible++;
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.csel')) document.querySelectorAll('.csel.open').forEach(c => c.classList.remove('open'));
     });
-    document.getElementById('contadorReg').textContent = visible;
-  }
-  searchInput.addEventListener('input', filtrarTabla);
-  searchInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); filtrarTabla(); } });
-  filterRol.addEventListener('change', filtrarTabla);
-  filterEstatus.addEventListener('change', filtrarTabla);
-</script>
+    initCsel('cselRol', null);
+    initCsel('cselEstatus', null);
+    initCsel('cselArea', null);
+    function setCsel(cselId, value, hiddenId) {
+      const csel = document.getElementById(cselId);
+      const hidden = document.getElementById(hiddenId);
+      const opt = csel.querySelector(`[data-value="${value}"]`);
+      if (!opt) return;
+      const valEl = csel.querySelector('.csel-val');
+      valEl.textContent = opt.textContent;
+      valEl.classList.remove('csel-placeholder');
+      hidden.value = value;
+      csel.querySelectorAll('.csel-option').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      csel.classList.remove('error');
+    }
+    function soloAlfanum(el, max) {
+      const pos = el.selectionStart;
+      el.value = el.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, max);
+      el.setSelectionRange(pos, pos);
+      if (el.classList.contains('error') && el.value.length === max) el.classList.remove('error');
+    }
+    function soloLetras(el) {
+      const pos = el.selectionStart;
+      el.value = el.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, '').toUpperCase();
+      el.setSelectionRange(pos, pos);
+    }
+    function soloMayus(el) {
+      const pos = el.selectionStart;
+      el.value = el.value.toUpperCase();
+      el.setSelectionRange(pos, pos);
+    }
+    function soloNumerosTel(el) {
+      el.value = el.value.replace(/[^0-9]/g, '').slice(0, 10);
+    }
+    function togglePass() {
+      const inp = document.getElementById('fPassword');
+      const btn = document.getElementById('eyeBtn');
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      btn.textContent = show ? '👁' : '👁';
+    }
+    function abrirModal() {
+      document.getElementById('modalOverlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function cerrarModal() {
+      document.getElementById('modalOverlay').classList.remove('open');
+      document.body.style.overflow = '';
+      const form = document.getElementById('usuarioForm');
+      form.action = form.dataset.crearUrl;
+      document.getElementById('modalTitulo').textContent = 'Dar de Alta — Usuario';
+      document.querySelector('.btn-save').textContent = 'Dar de Alta';
+      document.getElementById('modal').classList.remove('modal-ver');
+      document.querySelector('.btn-cancel').textContent = 'Cancelar';
+      document.getElementById('fIdUsuario').value = '';
+      document.getElementById('fIdUsuario').readOnly = false;
+      document.getElementById('fIdUsuario').style.opacity = '';
+      document.getElementById('fPassword').type = 'password';
+      document.getElementById('fPassword').readOnly = false;
+      document.getElementById('passHint').style.display = 'none';
+      document.getElementById('eyeBtn').textContent = '👁';
+      limpiarErrores();
+      form.reset();
+      ['cselRol', 'cselEstatus', 'cselArea'].forEach(id => {
+        const el = document.getElementById(id);
+        el.querySelector('.csel-val').textContent = '— Selecciona —';
+        el.querySelector('.csel-val').classList.add('csel-placeholder');
+        el.querySelector('input[type=hidden]').value = '';
+        el.querySelectorAll('.csel-option').forEach(o => o.classList.remove('selected'));
+      });
+    }
+    function cerrarFuera(e) {
+      if (e.target === document.getElementById('modalOverlay')) cerrarModal();
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+    function _llenarCampos(d) {
+      const idField = document.getElementById('fIdUsuario');
+      idField.value = d.id_usuario;
+      idField.readOnly = true;
+      idField.style.opacity = '.5';
+      document.getElementById('fUsername').value = d.username;
+      document.getElementById('fPassword').value = d.password || '';
+      document.getElementById('fNombre').value = d.nombre;
+      document.getElementById('fPaterno').value = d.apellido_paterno;
+      document.getElementById('fMaterno').value = d.apellido_materno;
+      document.getElementById('fEmail').value = d.email;
+      document.getElementById('fTelefono').value = d.telefono;
+      if (d.fk_rol) setCsel('cselRol', d.fk_rol, 'fRol');
+      if (d.estatus) setCsel('cselEstatus', d.estatus, 'fEstatus');
+      if (d.area) setCsel('cselArea', d.area, 'fArea');
+    }
+    function editarUsuario(id) {
+      fetch(`/usuarios/datos/${id}/`)
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(d => {
+          document.getElementById('usuarioForm').action = `/usuarios/actualizar/${id}/`;
+          document.getElementById('modalTitulo').textContent = `Editar Usuario — ${d.nombre} ${d.apellido_paterno} ${d.apellido_materno}`;
+          document.querySelector('.btn-save').textContent = 'Guardar Cambios';
+          document.getElementById('passHint').style.display = '';
+          _llenarCampos(d);
+          abrirModal();
+        })
+        .catch(() => alert('No se pudieron cargar los datos del usuario.'));
+    }
+    function verUsuario(id) {
+      fetch(`/usuarios/datos/${id}/`)
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(d => {
+          document.getElementById('modalTitulo').innerHTML =
+            `Ver Usuario — ${d.nombre} ${d.apellido_paterno} ${d.apellido_materno} <span class="modal-ver-badge">👁 SOLO LECTURA</span>`;
+          document.querySelector('.btn-cancel').textContent = 'Cerrar';
+          document.getElementById('modal').classList.add('modal-ver');
+          _llenarCampos(d);
+          document.getElementById('fPassword').type = 'password';
+          document.getElementById('fPassword').readOnly = true;
+          abrirModal();
+        })
+        .catch(() => alert('No se pudieron cargar los datos del usuario.'));
+    }
+    function limpiarErrores() {
+      document.querySelectorAll('.error').forEach(e => e.classList.remove('error'));
+      document.getElementById('valAlert').classList.remove('show');
+      document.getElementById('valList').innerHTML = '';
+    }
+    function marcarError(id, label, lista) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('error');
+      lista.push(label);
+    }
+    function marcarCselError(id, label, lista) {
+      document.getElementById(id).classList.add('error');
+      lista.push(label);
+    }
+    function validarYGuardar() {
+      limpiarErrores();
+      const errores = [];
+      const esEdicion = document.getElementById('usuarioForm').action.includes('/actualizar/');
+      if (!esEdicion) {
+        const idVal = document.getElementById('fIdUsuario').value.trim();
+        if (!idVal || idVal.length !== 5) marcarError('fIdUsuario', 'ID Usuario (debe ser exactamente 5 caracteres alfanuméricos)', errores);
+      }
+      if (!document.getElementById('fUsername').value.trim()) marcarError('fUsername', 'Username', errores);
+      if (!esEdicion && !document.getElementById('fPassword').value.trim()) marcarError('fPassword', 'Contraseña', errores);
+      if (!document.getElementById('fRol').value) marcarCselError('cselRol', 'Rol', errores);
+      if (!document.getElementById('fEstatus').value) marcarCselError('cselEstatus', 'Estatus', errores);
+      if (!document.getElementById('fNombre').value.trim()) marcarError('fNombre', 'Nombre', errores);
+      if (!document.getElementById('fPaterno').value.trim()) marcarError('fPaterno', 'Apellido Paterno', errores);
+      if (!document.getElementById('fMaterno').value.trim()) marcarError('fMaterno', 'Apellido Materno', errores);
+      const tel = document.getElementById('fTelefono').value.trim();
+      if (!tel) marcarError('fTelefono', 'Teléfono', errores);
+      else if (tel.length !== 10) marcarError('fTelefono', 'Teléfono (debe tener exactamente 10 dígitos)', errores);
+      if (errores.length > 0) {
+        const lista = document.getElementById('valList');
+        errores.forEach(e => { const li = document.createElement('li'); li.textContent = e; lista.appendChild(li); });
+        document.getElementById('valAlert').classList.add('show');
+        document.getElementById('modal').scrollTop = 0;
+        return;
+      }
+      document.getElementById('usuarioForm').submit();
+    }
+    const searchInput = document.getElementById('searchInput');
+    const filterRol = document.getElementById('filterRol');
+    const filterEstatus = document.getElementById('filterEstatus');
+    function filtrarTabla() {
+      const q = searchInput.value.toLowerCase().trim();
+      const rol = filterRol.value;
+      const estatus = filterEstatus.value;
+      const rows = document.querySelectorAll('#usuariosTbody tr[data-estatus]');
+      let visible = 0;
+      rows.forEach(row => {
+        const texto = row.textContent.toLowerCase();
+        const matchQ = !q || texto.includes(q);
+        const matchR = !rol || row.dataset.rol === rol;
+        const matchE = !estatus || row.dataset.estatus === estatus;
+        const show = matchQ && matchR && matchE;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      document.getElementById('contadorReg').textContent = visible;
+    }
+    searchInput.addEventListener('input', filtrarTabla);
+    searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); filtrarTabla(); } });
+    filterRol.addEventListener('change', filtrarTabla);
+    filterEstatus.addEventListener('change', filtrarTabla);
+  </script>
+  <script src="{% static 'js/notificaciones.js' %}?v=2"></script>
 </body>
+
 </html>

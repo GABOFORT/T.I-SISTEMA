@@ -37,10 +37,15 @@
       <button class="ab ab-view" title="Ver detalle"
         data-id="{{ t.id_ticket }}" onclick="verTicketBtn(this)">🔍</button>
       {% if not t.estatus_usuario %}
+      {% if niveles.modificar %}
       <button class="ab ab-edit" title="Editar"
         data-id="{{ t.id_ticket }}" onclick="editarTicketBtn(this)">✏️</button>
       <button class="ab ab-check" title="Cerrar y enviar a T.I"
         data-id="{{ t.id_ticket }}" onclick="cerrarTicketBtn(this)">✔</button>
+      {% else %}
+      <button type="button" class="ab ab-edit btn-bloqueado">✏️</button>
+      <button type="button" class="ab ab-check btn-bloqueado">✔</button>
+      {% endif %}
       {% else %}
       <span class="sbadge sb-finalizado" style="font-size:.65rem;padding:3px 8px">Enviado</span>
       {% endif %}

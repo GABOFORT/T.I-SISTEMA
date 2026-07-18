@@ -120,6 +120,7 @@
     .csel-option.placeholder-opt{font-style:italic}
     .modal-ver .m-field input,.modal-ver .m-field textarea{opacity:.6;pointer-events:none}
     .modal-ver .csel-trigger{opacity:.6;pointer-events:none}
+    .csel.locked .csel-trigger{opacity:.6;pointer-events:none;background:rgba(255,255,255,.03)}
     .modal-ver .btn-save{display:none!important}
     .overlay-ver .foto-big-clear{display:none!important}
     .overlay-ver .foto-big-label{pointer-events:none;cursor:default}
@@ -153,6 +154,7 @@
       <div><div class="s-name">T.I SISTEMA</div><div class="s-sub">Panel de Control</div></div>
     </div>
     <nav class="sidebar-nav">
+      {% if rol_id == 'ti1' %}
       <div class="nav-section-title">General</div>
       <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
       <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
@@ -160,16 +162,28 @@
       <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
       <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
       <a href="{% url 'tickets_lista' %}" class="nav-item active"><span class="n-icon">🎫</span> Tickets</a>
+      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
       <div class="nav-section-title">Administración</div>
       <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
       <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
+      {% else %}
+      <div class="nav-section-title">General</div>
+      <a href="{% url 'tickets_lista' %}" class="nav-item active"><span class="n-icon">🎫</span> Gestión de Tickets</a>
+      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
+      {% endif %}
     </nav>
     <div class="sidebar-footer">
       <div class="user-info">
         <div class="user-avatar">{{ username|first|upper }}</div>
         <div class="user-details">
           <div class="u-name">{{ nombre }} {{ apellido }}</div>
-          <div class="u-role">{{ rol }}</div>
+          <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
         </div>
       </div>
       <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
@@ -180,10 +194,29 @@
       <span class="topbar-title">Gestión de Tickets</span>
       <div class="topbar-right">
         <span class="topbar-time" id="clock">--:--:--</span>
-        <span class="role-tag role-usuario">{{ rol }}</span>
+        <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
+        <div class="notif-bell-wrap">
+          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-head">
+              <span>Notificaciones</span>
+              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
+            </div>
+            <div class="notif-panel-list" id="notifList">
+              <div class="notif-empty">Sin notificaciones</div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
     <div class="page-body">
+      {% if not niveles.consultar %}
+      <style>.page-body > *:not(.aviso-sin-acceso){display:none !important}</style>
+      <div class="aviso-sin-acceso" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:90px 20px;text-align:center">
+        <div style="font-size:2.8rem;opacity:.35">🔒</div>
+        <div style="color:#94a3b8;font-size:1.02rem;font-weight:600">Sin nivel de acceso para consultar esta información.</div>
+      </div>
+      {% endif %}
       {% if messages %}
         {% for msg in messages %}
           {% if msg.tags == 'error' %}<div class="notif-err">⚠ {{ msg }}</div>
@@ -214,23 +247,6 @@
             <span class="search-icon">🔍</span>
             <input type="text" id="searchInput" placeholder="Buscar por título, ID, área...">
           </div>
-          <select class="tk-select" id="filterArea">
-            <option value="">Todas las áreas</option>
-            <option value="T.I">T.I</option>
-            <option value="SUPERVISORES">SUPERVISORES</option>
-            <option value="MECANICOS">MECANICOS</option>
-            <option value="S.S.P.A">S.S.P.A</option>
-            <option value="CALIDAD">CALIDAD</option>
-            <option value="PROGRAMACION">PROGRAMACION</option>
-            <option value="TELEMETRIA">TELEMETRIA</option>
-            <option value="COORDINACION">COORDINACION</option>
-            <option value="ELECTRICOS">ELECTRICOS</option>
-            <option value="ALMACEN">ALMACEN</option>
-            <option value="MONITOREO">MONITOREO</option>
-            <option value="ADMINISTRACION">ADMINISTRACION</option>
-            <option value="OBRA MECANICA">OBRA MECANICA</option>
-            <option value="CONTABILIDAD">CONTABILIDAD</option>
-          </select>
           <select class="tk-select" id="filterEstatus">
             <option value="">Todos los estatus</option>
             <option value="PEN">Pendiente</option>
@@ -238,7 +254,11 @@
             <option value="FIN">Finalizado</option>
           </select>
         </div>
-        <button class="btn-nuevo" onclick="abrirModal()">＋ Nuevo Ticket</button>
+        {% if niveles.crear %}
+        <button class="btn-nuevo" onclick="abrirModalNuevo()">＋ Nuevo Ticket</button>
+        {% else %}
+        <button type="button" class="btn-nuevo btn-bloqueado">＋ Nuevo Ticket</button>
+        {% endif %}
       </div>
       <div class="tbl-wrap">
         <table>
@@ -248,6 +268,7 @@
               <th>Área</th>
               <th>Título / Descripción</th>
               <th>Dirigido a</th>
+              <th>Creado por</th>
               <th class="tc">Estatus</th>
               <th class="tc">Ticket</th>
               <th>Fecha</th>
@@ -255,62 +276,7 @@
             </tr>
           </thead>
           <tbody id="ticketsTbody">
-            {% for t in tickets %}
-            <tr data-area="{{ t.area }}" data-estatus="{{ t.estatus }}">
-              <td><span class="tk-id">#{{ t.id_ticket }}</span></td>
-              <td><span class="area-badge">{{ t.area|default:"—" }}</span></td>
-              <td>
-                <div class="tk-titulo">{{ t.titulo }}</div>
-                <div class="tk-desc">{{ t.descripcion|truncatechars:60 }}</div>
-              </td>
-              <td>
-                <div class="dirigido-wrap">
-                  <div class="dir-avatar">{{ t.dirigido_personal|first|upper }}</div>
-                  <div class="dir-name">{{ t.dirigido_personal }}</div>
-                </div>
-              </td>
-              <td class="tc">
-                {% if t.estatus == 'PEN' %}<span class="sbadge sb-pendiente">Pendiente</span>
-                {% elif t.estatus == 'PRO' %}<span class="sbadge sb-proceso">En Proceso</span>
-                {% elif t.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
-                {% else %}<span class="sbadge sb-cancelado">✕ Cancelado</span>{% endif %}
-              </td>
-              <td class="tc">
-                {% if t.estatus_usuario %}
-                <span class="sbadge sb-cancelado">Cerrado</span>
-                {% else %}
-                <span class="sbadge sb-proceso">Abierto</span>
-                {% endif %}
-              </td>
-              <td class="fecha-cell">{{ t.fecha_creacion|date:"d/m/Y H:i" }}</td>
-              <td class="tc">
-                <div class="actions">
-                  <button class="ab ab-view" title="Ver detalle"
-                    data-id="{{ t.id_ticket }}" onclick="verTicketBtn(this)">🔍</button>
-                  {% if not t.estatus_usuario %}
-                  <button class="ab ab-edit" title="Editar"
-                    data-id="{{ t.id_ticket }}" onclick="editarTicketBtn(this)">✏️</button>
-                  <button class="ab ab-check" title="Cerrar y enviar a T.I"
-                    data-id="{{ t.id_ticket }}" onclick="cerrarTicketBtn(this)">✔</button>
-                  {% else %}
-                  <span class="sbadge sb-finalizado" style="font-size:.65rem;padding:3px 8px">Enviado</span>
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% empty %}
-            <tr>
-              <td colspan="7">
-                <div class="empty-state">
-                  <div class="empty-icon"></div>
-                  <div class="empty-txt">
-                    No hay tickets registrados.<br>
-                    Crea el primero con <strong>Nuevo Ticket</strong>.
-                  </div>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
+            {% include 'tickets/_filas.html' %}
           </tbody>
         </table>
         <div class="tbl-footer">
@@ -427,10 +393,17 @@
             </div>
           </div>
         </div>
+        {% if niveles.importar %}
         <input type="file" class="foto-input" name="foto1" id="foto1Input" accept="image/*" onchange="previewFoto(this,1)">
         <input type="file" class="foto-input" name="foto2" id="foto2Input" accept="image/*" onchange="previewFoto(this,2)">
         <input type="file" class="foto-input" name="foto3" id="foto3Input" accept="image/*" onchange="previewFoto(this,3)">
         <input type="file" class="foto-input" name="foto4" id="foto4Input" accept="image/*" onchange="previewFoto(this,4)">
+        {% else %}
+        <input type="file" class="foto-input" id="foto1Input" disabled>
+        <input type="file" class="foto-input" id="foto2Input" disabled>
+        <input type="file" class="foto-input" id="foto3Input" disabled>
+        <input type="file" class="foto-input" id="foto4Input" disabled>
+        {% endif %}
       </form>
     </div>
     <div class="modal-footer">
@@ -440,7 +413,7 @@
   </div>
   <div class="fotos-panel" id="fotosPanel">
     <div class="fotos-panel-title">Fotos del Problema <span style="font-size:.65rem;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(máx. 4, opcional)</span></div>
-    <div class="fotos-panel-grid">
+    <div class="fotos-panel-grid {% if not niveles.importar %}btn-bloqueado{% endif %}">
       <div class="foto-big-cell" id="cell1">
         <label class="foto-big-label" for="foto1Input"><span class="no-foto">📷<br><small>Foto 1</small></span></label>
         <img id="prevBig1" alt="">
@@ -578,6 +551,18 @@
     document.getElementById('modalOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
+  const USUARIO_AREA = "{{ usuario_area|escapejs }}";
+  function abrirModalNuevo(){
+    cerrarModal();
+    const cselArea = document.getElementById('cselArea');
+    if(USUARIO_AREA){
+      setCsel('cselArea', USUARIO_AREA);
+      cselArea.classList.add('locked');
+    } else {
+      cselArea.classList.remove('locked');
+    }
+    abrirModal();
+  }
   function cerrarModal(){
     document.getElementById('modalOverlay').classList.remove('open');
     document.body.style.overflow = '';
@@ -591,6 +576,7 @@
     limpiarErrores();
     form.reset();
     ['cselArea','cselDirigido'].forEach(resetCsel);
+    document.getElementById('cselArea').classList.remove('locked');
     resetCselEquipo();
     limpiarTodasFotos();
   }
@@ -710,27 +696,43 @@
     document.getElementById('ticketForm').submit();
   }
   const searchInput   = document.getElementById('searchInput');
-  const filterArea    = document.getElementById('filterArea');
   const filterEstatus = document.getElementById('filterEstatus');
   function filtrarTabla(){
     const q       = searchInput.value.toLowerCase().trim();
-    const area    = filterArea.value;
     const estatus = filterEstatus.value;
-    const rows    = document.querySelectorAll('#ticketsTbody tr[data-area]');
+    const rows    = document.querySelectorAll('#ticketsTbody tr[data-estatus]');
     let visible   = 0;
     rows.forEach(row=>{
       const matchQ = !q || row.textContent.toLowerCase().includes(q);
-      const matchA = !area    || row.dataset.area    === area;
       const matchE = !estatus || row.dataset.estatus === estatus;
-      const show   = matchQ && matchA && matchE;
+      const show   = matchQ && matchE;
       row.style.display = show ? '' : 'none';
       if(show) visible++;
     });
     document.getElementById('contadorReg').textContent = visible;
   }
   searchInput.addEventListener('input', filtrarTabla);
-  filterArea.addEventListener('change', filtrarTabla);
   filterEstatus.addEventListener('change', filtrarTabla);
+
+  async function actualizarTickets(){
+    if(document.getElementById('modalOverlay').classList.contains('open')) return;
+    try{
+      const res = await fetch("{% url 'tickets_actualizacion' %}");
+      if(res.status === 403){ if(Number("{{ niveles.consultar|default:0 }}") === 1) location.reload(); return; }
+      if(res.ok && Number("{{ niveles.consultar|default:0 }}") === 0){ location.reload(); return; }
+      if(!res.ok) return;
+      const data = await res.json();
+      document.getElementById('ticketsTbody').innerHTML = data.tbody_html;
+      const vals = document.querySelectorAll('.tk-stat-val');
+      vals[0].textContent = data.stats.total;
+      vals[1].textContent = data.stats.pendiente;
+      vals[2].textContent = data.stats.proceso;
+      vals[3].textContent = data.stats.finalizado;
+      filtrarTabla();
+    }catch(e){ }
+  }
+  setInterval(actualizarTickets, 5000);
 </script>
+<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
 </body>
 </html>

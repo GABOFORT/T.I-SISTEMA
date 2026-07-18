@@ -24,17 +24,21 @@
       <div class="nav-section-title">Soporte T.I</div>
       <a href="{% url 'equipos_lista' %}" class="nav-item active"><span class="n-icon">🖥️</span> Equipos</a>
       <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
-      <a href="#" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <a href="{% url 'tickets_lista' %}" class="nav-item"><span class="n-icon">🎫</span> Tickets</a>
+      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
+      <div class="nav-section-title">Reservaciones</div>
+      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
+      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
       <div class="nav-section-title">Administración</div>
-      <a href="#" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
-      <a href="#" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
+      <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
+      <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-info">
         <div class="user-avatar">{{ username|first|upper }}</div>
         <div class="user-details">
           <div class="u-name">{{ nombre }} {{ apellido }}</div>
-          <div class="u-role">{{ rol }}</div>
+          <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
         </div>
       </div>
       <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
@@ -47,7 +51,19 @@
       </span>
       <div class="topbar-right">
         <span class="topbar-time" id="clock">--:--:--</span>
-        <span class="role-tag role-usuario">{{ rol }}</span>
+        <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
+        <div class="notif-bell-wrap">
+          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-head">
+              <span>Notificaciones</span>
+              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
+            </div>
+            <div class="notif-panel-list" id="notifList">
+              <div class="notif-empty">Sin notificaciones</div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
     <div class="page-body">
@@ -104,7 +120,7 @@
           </div>
         </div>
         <div class="form-card" id="sec-laptop" style="display:none;">
-          <div class="form-card-title">🔋 Datos de Laptop</div>
+          <div class="form-card-title">Datos de Laptop</div>
           <div class="form-grid">
             <div class="form-field">
               <label>¿Batería Integrada?</label>
@@ -225,5 +241,6 @@
   tipoSelect.addEventListener('change', actualizarCampos);
   batSelect.addEventListener('change', actualizarBateria);
 </script>
+<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
 </body>
 </html>
