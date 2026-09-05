@@ -1,0 +1,180 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reporte de Mantenimiento Independiente</title>
+  <style>
+    @page { size: letter; margin: 6mm 15mm 12mm 15mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #ccc; margin: 0; }
+    .hoja { background: #fff; width: 216mm; min-height: 279.4mm; margin: 16px auto; padding: 6mm 15mm 12mm 15mm; box-shadow: 0 0 12px rgba(0,0,0,.3); position: relative; }
+    .hoja, .hoja * { font-family: Arial, Helvetica, sans-serif !important; font-size: 12pt !important; }
+    .toolbar { max-width: 216mm; margin: 0 auto 14px; display: flex; justify-content: center; gap: 14px; padding: 6px 0; }
+    .toolbar button, .toolbar a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 26px; border: none; border-radius: 9px; font-size: .88rem; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .btn-guardar { background: #fff; color: #0070f3; border: 2px solid #0070f3 !important; }
+    .btn-imprimir { background: linear-gradient(135deg, #0ea5ff, #0070f3); color: #fff; }
+    .toolbar .btn-bloqueado { opacity: .45 !important; cursor: not-allowed !important; position: relative; z-index: 50; filter: grayscale(.6); }
+    .toolbar .btn-bloqueado:hover::after { content: 'Sin nivel de acceso'; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1f2937; color: #f87171; font-size: .7rem; font-weight: 700; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,77,109,.4); white-space: nowrap; z-index: 10000; }
+    table.encabezado { width: 100%; border-collapse: collapse; border: 2px solid #8ea6c4; }
+    table.encabezado > tbody > tr > td { border: 2px solid #8ea6c4; padding: 0; vertical-align: middle; }
+    .logo-cell { width: 26%; text-align: center; padding: 10px !important; }
+    .logo-cell img { max-width: 140px; max-height: 65px; }
+    .meta-cell { padding: 0 !important; }
+    .meta-cell table { width: 100%; border-collapse: collapse; }
+    .meta-cell table td { border: none; border-right: 2px solid #8ea6c4; padding: 6px 12px; text-align: center; font-size: 9pt !important; }
+    .meta-cell table td * { font-size: 9pt !important; }
+    .meta-cell table tr td:last-child { border-right: none; }
+    .titulo-cell { text-align: center; padding: 10px 14px !important; }
+    .titulo-cell .subtitulo { font-weight: 700; letter-spacing: .5px; color: #6fa8dc; font-size: 11pt !important; }
+    .titulo-cell .titulo-doc { font-weight: 800; letter-spacing: .3px; color: #808080; margin-top: 4px; font-size: 10pt !important; }
+    .campos { margin-top: 14px; font-size: .82rem; line-height: 1.7; }
+    .campo b { font-weight: 700; }
+    .campo-bloque { margin-bottom: 10px; font-size: .82rem; line-height: 1.6; }
+    .campo-bloque b { display: block; font-weight: 700; margin-bottom: 2px; }
+    .hallazgo-box { background: #fff3cd; border: 1px solid #e0b73a; border-radius: 4px; padding: 10px 14px; margin-top: 10px; font-size: .8rem !important; }
+    .realizo { text-align: center; margin-top: 30px; font-size: .85rem; }
+    #firmaCanvas { display: block; margin: 0 auto; }
+    .realizo .nombre { font-weight: 700; border-top: 1px solid #000; display: inline-block; padding-top: 4px; margin-top: 6px; }
+    .footer { margin-top: 30px; }
+    .footer .copia { text-align: center; color: #0645AD; font-size: 9pt !important; margin-bottom: 10px; }
+    .footer .cert-texto { line-height: 1.35; text-align: justify; font-size: 9pt !important; }
+    .footer .cert-img { max-width: 130px; display: block; margin: 8px 0 0 auto; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .hoja { box-shadow: none; margin: 0; width: auto; min-height: 261.4mm; padding: 0; }
+    }
+
+    /* ── Solo pantalla: la hoja mantiene su tamaño real (Carta) y se escala
+       para caber en pantallas pequeñas, sin deformar el documento. ── */
+    @media screen {
+      body { background: #d7dce3; padding-bottom: 24px; }
+      .toolbar {
+        position: sticky; top: 0; z-index: 60;
+        background: #d7dce3; margin-bottom: 12px;
+        padding: 12px 0; flex-wrap: wrap;
+      }
+      .toolbar button, .toolbar a {
+        min-height: 44px;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        transition: filter .15s ease-out, box-shadow .15s ease-out;
+      }
+      .toolbar button:hover, .toolbar a:hover { filter: brightness(1.06); }
+      .toolbar button:focus-visible, .toolbar a:focus-visible {
+        outline: 2px solid #0070f3; outline-offset: 3px;
+      }
+      .hoja-marco { overflow: hidden; }
+      .hoja { transform-origin: top center; }
+    }
+    @media screen and (max-width: 900px) {
+      .toolbar { padding: 10px 12px; gap: 8px; }
+      .toolbar button, .toolbar a { flex: 1; justify-content: center; padding: 11px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    {% if niveles.exportar %}
+    <a href="{% url 'reporte_mantenimiento_independiente_pdf' id_mantenimiento %}" class="btn-guardar">💾 Guardar como PDF</a>
+    <button class="btn-imprimir" onclick="window.print()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>Imprimir</button>
+    {% else %}
+    <a class="btn-guardar btn-bloqueado">💾 Guardar como PDF</a>
+    <button type="button" class="btn-imprimir btn-bloqueado"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>Imprimir</button>
+    {% endif %}
+  </div>
+  <div class="hoja-marco"><div class="hoja">
+    <table class="encabezado">
+      <tr>
+        <td class="logo-cell" rowspan="2"><img src="{% static 'img/CECSA.png' %}" alt="CECSA"></td>
+        <td class="meta-cell"><table><tr>
+          <td><b>Código:</b> F-CECSA-ST-06</td><td><b>Página:</b> 1 de 1</td><td><b>Revisión:</b> 04 diciembre 2024</td>
+        </tr></table></td>
+      </tr>
+      <tr><td class="titulo-cell">
+        <div class="subtitulo">CÓMPUTO Y ELECTRÓNICA DE COATZACOALCOS S.A. DE C.V.</div>
+        <div class="titulo-doc">FORMATO DE REPORTE DE MANTENIMIENTO A EQUIPOS</div>
+      </td></tr>
+    </table>
+
+    <div class="campos">
+      <div class="campo"><b>EQUIPO:</b> {{ nombre_equipo|default:"—" }}</div>
+      <div class="campo"><b>LUGAR DE LA ACTIVIDAD:</b> {{ lugar_actividad|default:"—" }}</div>
+      <div class="campo"><b>FECHA:</b> {{ fecha|date:"d/M/Y" }}</div>
+    </div>
+
+    <div class="campo-bloque" style="margin-top:14px"><b>Descripción del Mantenimiento:</b> {{ descripcion }}</div>
+    {% if observaciones %}<div class="campo-bloque"><b>Observaciones:</b> {{ observaciones }}</div>{% endif %}
+    {% if hallazgo %}
+    <div class="hallazgo-box"><b>⚠ Hallazgo pendiente de reemplazo:</b> {{ hallazgo }} — se generó un registro de Cambio de Pieza pendiente.</div>
+    {% endif %}
+
+    <div class="realizo">
+      <div>REALIZO</div>
+      <canvas id="firmaCanvas" width="260" height="90"></canvas>
+      <div class="nombre">{{ tecnico_nombre }}</div>
+      <div class="depto">TECNOLOGIAS DE LA INFORMACION (T.I.)</div>
+    </div>
+
+    <div class="footer">
+      <div class="copia">Todo documento impreso será un documento como Copia No Controlada.</div>
+      <div class="cert-row" style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">
+        <div class="cert-texto">
+          "CECSA, S.A DE C.V, Sistema de Gestión Integral de Calidad certificado por "INGEDESA" Alcance de Certificación
+          Servicios de inyección de gas a base de moto compresión, telemetría y obra mecánica para el sector de
+          hidrocarburos y Servicios de automatización y control a través de la programación e instrumentación para
+          el sector industrial. Número de certificado 001,002 y 003 INGEDESA en base a ISO 9001:2015, ISO 45001:2018
+          e ISO 14001:2015 Vigencia de Certificación 2027".
+        </div>
+        <img class="cert-img" src="{% static 'img/CERTIFICACIONES.png' %}" alt="Certificaciones">
+      </div>
+    </div>
+  </div>
+  </div>
+<script>
+    (function(){
+      const trazos = JSON.parse('{{ firma_ti_json|escapejs }}');
+      if(!trazos || trazos.length === 0) return;
+      const canvas = document.getElementById('firmaCanvas');
+      const ctx = canvas.getContext('2d');
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+      trazos.forEach(t=>t.forEach(p=>{ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }));
+      const anchoOriginal = Math.max(maxX-minX,1), altoOriginal = Math.max(maxY-minY,1), pad=10;
+      const escala = Math.min((canvas.width-pad*2)/anchoOriginal, (canvas.height-pad*2)/altoOriginal);
+      const offX = pad + (canvas.width-pad*2-anchoOriginal*escala)/2;
+      const offY = pad + (canvas.height-pad*2-altoOriginal*escala)/2;
+      ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#111';
+      trazos.forEach(t=>{ ctx.beginPath(); t.forEach((p,i)=>{ const x=offX+(p.x-minX)*escala, y=offY+(p.y-minY)*escala; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }); ctx.stroke(); });
+    })();
+  </script>
+
+<script>
+  /* Ajusta la hoja al ancho disponible para poder revisarla desde el
+     teléfono. No altera el documento: solo lo escala en pantalla. */
+  (function () {
+    var hoja = document.querySelector('.hoja');
+    if (!hoja) return;
+    var marco = hoja.parentNode;
+    function ajustar() {
+      hoja.style.transform = '';
+      marco.style.height = '';
+      var disponible = document.documentElement.clientWidth - 24;
+      var real = hoja.offsetWidth;
+      if (!real) return;
+      var escala = Math.min(1, disponible / real);
+      if (escala < 1) {
+        hoja.style.transform = 'scale(' + escala + ')';
+        marco.style.height = (hoja.offsetHeight * escala) + 'px';
+      }
+    }
+    ajustar();
+    window.addEventListener('resize', ajustar);
+    window.addEventListener('beforeprint', function () {
+      hoja.style.transform = ''; marco.style.height = '';
+    });
+    window.addEventListener('afterprint', ajustar);
+  })();
+</script>
+</body>
+</html>

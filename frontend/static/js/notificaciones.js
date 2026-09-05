@@ -3,6 +3,7 @@
   let ultimoConteo = null;
   let audioCtx = null;
   let nivelesConocidos = null;
+  let recargaPendiente = false;
 
   function obtenerAudioCtx(){
     if(!audioCtx){
@@ -58,18 +59,28 @@
   async function cargarNotificaciones(soloConteo){
     try{
       const res = await fetch('/notificaciones/lista/');
-      if(!res.ok) return;
+      if(!res.ok) return false;
       const data = await res.json();
       if(data.niveles){
         const firma = JSON.stringify(data.niveles);
         if(nivelesConocidos !== null && firma !== nivelesConocidos){
-          location.reload();
-          return;
+          // Cambiaron los permisos. Si hay un modal abierto se pospone la
+          // recarga: recargar ahora borraria lo que se esta capturando.
+          if(window.hayModalAbierto && window.hayModalAbierto()){
+            recargaPendiente = true;
+          } else {
+            location.reload();
+            return;
+          }
         }
         nivelesConocidos = firma;
       }
+      if(recargaPendiente && !(window.hayModalAbierto && window.hayModalAbierto())){
+        location.reload();
+        return;
+      }
       const badge = document.getElementById('notifBadge');
-      if(!badge) return;
+      if(!badge) return false;
       if(data.no_leidas > 0){
         badge.textContent = data.no_leidas > 9 ? '9+' : data.no_leidas;
         badge.style.display = 'flex';
@@ -79,11 +90,14 @@
       if(ultimoConteo !== null && data.no_leidas > ultimoConteo){
         sonarAlertaNotif();
       }
+      const cambio = ultimoConteo !== data.no_leidas;
       ultimoConteo = data.no_leidas;
       if(!soloConteo){
         renderNotificaciones(data.notificaciones);
       }
+      return cambio;
     }catch(e){}
+    return false;
   }
 
   window.toggleNotifPanel = function(){
@@ -120,6 +134,10 @@
 
   document.addEventListener('DOMContentLoaded', ()=>{
     cargarNotificaciones(true);
-    setInterval(()=>cargarNotificaciones(true), 5000);
+    if(window.crearSondeo){
+      window.crearSondeo(()=>cargarNotificaciones(true));
+    } else {
+      setInterval(()=>cargarNotificaciones(true), 5000);
+    }
   });
 })();

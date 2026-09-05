@@ -1,8 +1,9 @@
 from functools import wraps
 from datetime import datetime, date as date_type
+import json as json_lib
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.db import connection
 
 def login_requerido(view_func):
@@ -79,6 +80,120 @@ def _crear_notificacion(cursor, fk_usuario, fk_ticket, tipo, mensaje):
         VALUES (%s, %s, %s, %s, FALSE, %s)
     """, [fk_usuario, fk_ticket, tipo, mensaje, datetime.now()])
 
+def _firma_obj(cursor, usuario_id, trazos_json):
+    """Arma el objeto de firma enriquecido: trazos + identidad/rol/permiso/nivel
+    de quien firmó en ese momento — igual para T.I y para el usuario."""
+    cursor.execute("""
+        SELECT u.nombre, u.apellido_paterno, u.apellido_materno,
+               r.descripcion, p.descripcion, n.descripcion
+        FROM usuarios u
+        LEFT JOIN cat_roles r ON r.id_rol = u.fk_rol
+        LEFT JOIN cat_permisos p ON p.id_permiso = r.fk_permisos
+        LEFT JOIN cat_nivel n ON n.id_nivel = p.id_nivel
+        WHERE u.id_usuario = %s
+    """, [usuario_id])
+    firmante = cursor.fetchone()
+    return {
+        'fecha':      datetime.now().isoformat(),
+        'usuario_id': usuario_id,
+        'nombre':     ' '.join(p for p in firmante[0:3] if p) if firmante else '',
+        'rol':        firmante[3] if firmante else None,
+        'permiso':    firmante[4] if firmante else None,
+        'nivel':      firmante[5] if firmante else None,
+        'firma':      json_lib.loads(trazos_json),
+    }
+
+def _registrar_actividad(cursor, actividad, descripcion, fecha_actividad, observaciones,
+                          fk_usuario_ti, origen_tipo, origen_id):
+    """Bitácora automática (F-CECSA-TI-05): una fila por cada servicio que se
+    completa, sin captura manual aparte — alimenta el Reporte de Actividades."""
+    cursor.execute("""
+        INSERT INTO reporte_actividades
+          (actividad, descripcion, fecha_actividad, observaciones, fk_usuario_ti,
+           origen_tipo, origen_id, fecha_creacion)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, [actividad[:200], (descripcion or '')[:500], fecha_actividad, (observaciones or '')[:300],
+          fk_usuario_ti, origen_tipo, origen_id, datetime.now()])
+
+def _piezas_del_cambio(cursor, id_cambio):
+    """Piezas de un refaccionamiento, ya separadas en dañadas y nuevas.
+    Mismo bloque que antes estaba repetido en atencion_datos,
+    historial_mi_equipo_datos y refaccionamiento_datos."""
+    cursor.execute("""
+        SELECT tipo, cantidad, descripcion, marca, modelo, numero_serie
+        FROM atencion_cambio_pieza_detalle WHERE fk_cambio = %s
+    """, [id_cambio])
+    danadas, nuevas = [], []
+    for tipo, cantidad, desc, marca, modelo, serie in cursor.fetchall():
+        item = {'cantidad': cantidad, 'descripcion': desc,
+                'marca': marca, 'modelo': modelo, 'numero_serie': serie}
+        (danadas if tipo == 'DANADA' else nuevas).append(item)
+    return danadas, nuevas
+
+
+def _guardar_cambio_pieza(cursor, fk_ticket, fk_usuario_ti, fk_equipo, fk_nombre_equipo, fecha_cambio,
+                           origen, piezas_danadas, piezas_nuevas, firma_ti_obj=None, estatus_inicial=None):
+    """Crea la cabecera + el detalle de piezas de un Cambio de Pieza (F-CECSA-TI-08).
+    Puede nacer de un ticket, de forma independiente, o automático desde un
+    hallazgo de Mantenimiento (en ese caso queda 'ABIERTO' sin piezas nuevas)."""
+    estatus = estatus_inicial or ('PTI' if firma_ti_obj else 'PEN')
+    cursor.execute("""
+        INSERT INTO atencion_cambio_pieza
+          (fk_ticket, fk_usuario_ti, fk_equipo, fk_nombre_equipo, fecha_cambio,
+           origen, estatus, firma_ti, fecha_creacion)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id_cambio
+    """, [fk_ticket, fk_usuario_ti, fk_equipo, fk_nombre_equipo, fecha_cambio, origen, estatus,
+          json_lib.dumps(firma_ti_obj) if firma_ti_obj else None, datetime.now()])
+    id_cambio = cursor.fetchone()[0]
+    for tipo, lista in (('DANADA', piezas_danadas or []), ('NUEVA', piezas_nuevas or [])):
+        for pieza in lista:
+            cursor.execute("""
+                INSERT INTO atencion_cambio_pieza_detalle
+                  (fk_cambio, tipo, cantidad, descripcion, marca, modelo, numero_serie)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, [id_cambio, tipo, pieza.get('cantidad') or 1, (pieza.get('descripcion') or '')[:200],
+                  (pieza.get('marca') or '')[:100], (pieza.get('modelo') or '')[:100],
+                  (pieza.get('numero_serie') or '')[:100]])
+    return id_cambio
+
+def _equipos_de_usuario(cursor, usuario_id):
+    """Lo inverso de _equipo_usuario_asignado_id: qué equipos tiene asignados
+    este usuario, comparando por pedazos del nombre (mismo motivo: texto libre)."""
+    cursor.execute("SELECT nombre, apellido_paterno, apellido_materno FROM usuarios WHERE id_usuario = %s", [usuario_id])
+    row = cursor.fetchone()
+    partes = [p.upper() for p in row if p] if row else []
+    if not partes:
+        return []
+    cursor.execute("SELECT id_equipo, nombre_equipo, usuario_asignado FROM cat_equipos WHERE usuario_asignado IS NOT NULL")
+    return [(id_eq, nombre) for id_eq, nombre, asignado in cursor.fetchall()
+            if all(parte in asignado.upper() for parte in partes)]
+
+def _puede_ver_servicio_independiente(request, fk_equipo):
+    """T.I siempre puede; el usuario solo si ese equipo está asignado a él."""
+    if request.session.get('usuario_rol_id') == 'ti1':
+        return True
+    with connection.cursor() as cursor:
+        return _equipo_usuario_asignado_id(cursor, fk_equipo) == request.session.get('usuario_id')
+
+def _equipo_usuario_asignado_id(cursor, fk_equipo):
+    """Busca qué usuario tiene asignado un equipo, comparando por pedazos del
+    nombre (usuario_asignado es texto libre y no siempre viene en el mismo
+    orden de nombre/apellidos)."""
+    if not fk_equipo:
+        return None
+    cursor.execute("SELECT usuario_asignado FROM cat_equipos WHERE id_equipo = %s", [fk_equipo])
+    row = cursor.fetchone()
+    if not row or not row[0]:
+        return None
+    asignado = row[0].upper()
+    cursor.execute("SELECT id_usuario, nombre, apellido_paterno, apellido_materno FROM usuarios WHERE estatus != 'INA'")
+    for uid, nombre, paterno, materno in cursor.fetchall():
+        partes = [p for p in (nombre, paterno, materno) if p]
+        if partes and all(parte.upper() in asignado for parte in partes):
+            return uid
+    return None
+
 def login_view(request):
     if request.session.get('usuario_id'):
         return redirect('dashboard')
@@ -150,13 +265,14 @@ def _tickets_y_stats(request):
                 'estatus','fecha_creacion','fk_equipo','fk_nombre_equipo','estatus_usuario','descripcion',
                 'creador_nombre','creador_apellido','creador_materno']
         tickets = [dict(zip(cols, r)) for r in cursor.fetchall()]
+        # Sin JOIN a usuarios: no se usa ninguna de sus columnas y, al ser
+        # LEFT JOIN, tampoco filtraba filas. El resultado es idéntico.
         cursor.execute(f"""
             SELECT COUNT(*),
                    SUM(CASE WHEN t.estatus='PEN' THEN 1 ELSE 0 END),
                    SUM(CASE WHEN t.estatus='PRO' THEN 1 ELSE 0 END),
                    SUM(CASE WHEN t.estatus='FIN' THEN 1 ELSE 0 END)
             FROM ticket_usuario t
-            LEFT JOIN usuarios u ON u.id_usuario = t.fk_usuario
             {filtro_where}
         """, filtro_params)
         s = cursor.fetchone()
@@ -348,7 +464,12 @@ def _seguimiento_tickets(request):
             SELECT t.id_ticket, t.titulo, t.area, t.dirigido_personal,
                    t.estatus, t.fecha_creacion, t.fecha_cierre, t.descripcion,
                    u.nombre, u.apellido_paterno, u.apellido_materno,
-                   s.estatus_firmas, (t.fk_usuario = %s) AS es_propio
+                   s.estatus_firmas, (t.fk_usuario = %s) AS es_propio,
+                   s.es_mantenimiento, s.es_respaldo, s.es_cambio_pieza,
+                   (SELECT id_respaldo FROM atencion_respaldo r WHERE r.fk_ticket = t.id_ticket
+                      ORDER BY r.fecha_creacion DESC LIMIT 1) AS id_respaldo,
+                   (SELECT id_cambio FROM atencion_cambio_pieza c WHERE c.fk_ticket = t.id_ticket
+                      ORDER BY c.fecha_creacion DESC LIMIT 1) AS id_cambio
             FROM ticket_usuario t
             LEFT JOIN usuarios u ON u.id_usuario = t.fk_usuario
             LEFT JOIN seguimiento_ticket s ON s.fk_ticket = t.id_ticket
@@ -359,7 +480,8 @@ def _seguimiento_tickets(request):
         """, [usuario_id])
         cols = ['id_ticket','titulo','area','dirigido_personal',
                 'estatus','fecha_creacion','fecha_cierre','descripcion',
-                'creador_nombre','creador_apellido','creador_materno','estatus_firmas','es_propio']
+                'creador_nombre','creador_apellido','creador_materno','estatus_firmas','es_propio',
+                'es_mantenimiento','es_respaldo','es_cambio_pieza','id_respaldo','id_cambio']
         return [dict(zip(cols, r)) for r in cursor.fetchall()]
 
 @login_requerido
@@ -433,32 +555,65 @@ def atencion_datos(request, id_ticket):
                    s.imagen_3 IS NOT NULL, s.imagen_4 IS NOT NULL,
                    s.firma_ti IS NOT NULL,
                    t.titulo, t.descripcion, t.fk_nombre_equipo,
-                   u.nombre, u.apellido_paterno, u.apellido_materno
+                   u.nombre, u.apellido_paterno, u.apellido_materno,
+                   s.es_mantenimiento, s.es_respaldo, s.es_cambio_pieza
             FROM seguimiento_ticket s
             JOIN ticket_usuario t ON t.id_ticket = s.fk_ticket
             LEFT JOIN usuarios u ON u.id_usuario = t.fk_usuario
             WHERE s.fk_ticket = %s
         """, [id_ticket])
         row = cursor.fetchone()
-    if not row:
-        return JsonResponse({'error': 'No encontrado'}, status=404)
-    return JsonResponse({
-        'diagnostico':     row[0] or '',
-        'solucion':        row[1] or '',
-        'observacion':     row[2] or '',
-        'tipo_ticket':     row[3] or '',
-        'lugar_actividad': row[4] or '',
-        'estatus_firmas':  row[5] or '',
-        'tiene_imagen_1':  bool(row[6]),
-        'tiene_imagen_2':  bool(row[7]),
-        'tiene_imagen_3':  bool(row[8]),
-        'tiene_imagen_4':  bool(row[9]),
-        'tiene_firma_ti':  bool(row[10]),
-        'ticket_titulo':      row[11] or '',
-        'ticket_descripcion': row[12] or '',
-        'ticket_equipo':      row[13] or '',
-        'ticket_creador':     ' '.join(p for p in row[14:17] if p),
-    })
+        if not row:
+            return JsonResponse({'error': 'No encontrado'}, status=404)
+        data = {
+            'diagnostico':     row[0] or '',
+            'solucion':        row[1] or '',
+            'observacion':     row[2] or '',
+            'tipo_ticket':     row[3] or '',
+            'lugar_actividad': row[4] or '',
+            'estatus_firmas':  row[5] or '',
+            'tiene_imagen_1':  bool(row[6]),
+            'tiene_imagen_2':  bool(row[7]),
+            'tiene_imagen_3':  bool(row[8]),
+            'tiene_imagen_4':  bool(row[9]),
+            'tiene_firma_ti':  bool(row[10]),
+            'ticket_titulo':      row[11] or '',
+            'ticket_descripcion': row[12] or '',
+            'ticket_equipo':      row[13] or '',
+            'ticket_creador':     ' '.join(p for p in row[14:17] if p),
+            'es_mantenimiento':   bool(row[17]),
+            'es_respaldo':        bool(row[18]),
+            'es_cambio_pieza':    bool(row[19]),
+        }
+        if data['es_respaldo']:
+            cursor.execute("""
+                SELECT tipo_solicitud, tipo_fuente_datos, ruta_unidad_compartida, archivos_respaldar,
+                       nombre_servidor, sistema_operativo, ip_servidor, tipo_backup,
+                       observaciones_politica, total_gb_respaldar, total_gb_crecimiento,
+                       periodicidad, nivel_backup, agenda, horario, retencion_dias
+                FROM atencion_respaldo WHERE fk_ticket = %s ORDER BY fecha_creacion DESC LIMIT 1
+            """, [id_ticket])
+            r = cursor.fetchone()
+            if r:
+                cols = ['tipo_solicitud','tipo_fuente_datos','ruta_unidad_compartida','archivos_respaldar',
+                        'nombre_servidor','sistema_operativo','ip_servidor','tipo_backup',
+                        'observaciones_politica','total_gb_respaldar','total_gb_crecimiento',
+                        'periodicidad','nivel_backup','agenda','horario','retencion_dias']
+                data['respaldo'] = dict(zip(cols, r))
+        if data['es_cambio_pieza']:
+            cursor.execute("""
+                SELECT id_cambio, fecha_cambio FROM atencion_cambio_pieza
+                WHERE fk_ticket = %s AND origen = 'TICKET' ORDER BY fecha_creacion DESC LIMIT 1
+            """, [id_ticket])
+            c = cursor.fetchone()
+            if c:
+                id_cambio, fecha_cambio = c
+                danadas, nuevas = _piezas_del_cambio(cursor, id_cambio)
+                data['cambio_pieza'] = {
+                    'fecha_cambio': fecha_cambio.strftime('%Y-%m-%d') if fecha_cambio else '',
+                    'danadas': danadas, 'nuevas': nuevas,
+                }
+    return JsonResponse(data)
 
 @login_requerido
 @nivel_requerido('consultar')
@@ -480,7 +635,6 @@ def atencion_imagen(request, id_ticket, n):
 @rol_requerido('ti1')
 @nivel_requerido('modificar')
 def atencion_guardar(request, id_ticket):
-    import json as json_lib
     if request.method != 'POST':
         return redirect('tickets_seguimiento')
     diagnostico     = request.POST.get('diagnostico', '').strip()
@@ -489,40 +643,28 @@ def atencion_guardar(request, id_ticket):
     tipo_ticket     = request.POST.get('tipo_ticket', '').strip()
     lugar_actividad = request.POST.get('lugar_actividad', '').strip()
     firma_ti_json   = request.POST.get('firma_ti_json', '').strip()
+    es_mantenimiento = request.POST.get('es_mantenimiento') == '1'
+    es_respaldo      = request.POST.get('es_respaldo') == '1'
+    es_cambio_pieza  = request.POST.get('es_cambio_pieza') == '1'
     if not diagnostico or not solucion or not tipo_ticket or not lugar_actividad:
         messages.error(request, 'Diagnóstico, Solución, Tipo de Ticket y Lugar de Actividad son obligatorios.')
         return redirect('tickets_seguimiento')
     sets, vals = [
         'diagnostico=%s', 'solucion=%s', 'observacion=%s',
         'tipo_ticket=%s', 'lugar_actividad=%s',
-    ], [diagnostico, solucion, observacion, tipo_ticket, lugar_actividad]
+        'es_mantenimiento=%s', 'es_respaldo=%s', 'es_cambio_pieza=%s',
+    ], [diagnostico, solucion, observacion, tipo_ticket, lugar_actividad,
+        es_mantenimiento, es_respaldo, es_cambio_pieza]
     for i in range(1, 5):
         f = request.FILES.get(f'imagen_{i}')
         if f:
             sets.append(f'imagen_{i}=%s')
             vals.append(f.read())
     with connection.cursor() as cursor:
+        usuario_ti_id = request.session.get('usuario_id')
+        firma_obj = None
         if firma_ti_json:
-            usuario_ti_id = request.session.get('usuario_id')
-            cursor.execute("""
-                SELECT u.nombre, u.apellido_paterno, u.apellido_materno,
-                       r.descripcion, p.descripcion, n.descripcion
-                FROM usuarios u
-                LEFT JOIN cat_roles r ON r.id_rol = u.fk_rol
-                LEFT JOIN cat_permisos p ON p.id_permiso = r.fk_permisos
-                LEFT JOIN cat_nivel n ON n.id_nivel = p.id_nivel
-                WHERE u.id_usuario = %s
-            """, [usuario_ti_id])
-            firmante = cursor.fetchone()
-            firma_obj = {
-                'fecha':      datetime.now().isoformat(),
-                'usuario_id': usuario_ti_id,
-                'nombre':     ' '.join(p for p in firmante[0:3] if p) if firmante else '',
-                'rol':        firmante[3] if firmante else None,
-                'permiso':    firmante[4] if firmante else None,
-                'nivel':      firmante[5] if firmante else None,
-                'firma':      json_lib.loads(firma_ti_json),
-            }
+            firma_obj = _firma_obj(cursor, usuario_ti_id, firma_ti_json)
             sets.append('firma_ti=%s')
             vals.append(json_lib.dumps(firma_obj))
             sets.append("estatus_firmas='PTI'")
@@ -533,9 +675,46 @@ def atencion_guardar(request, id_ticket):
         if cursor.rowcount == 0:
             messages.error(request, 'No se pudo guardar (el registro ya fue firmado o no existe).')
             return redirect('tickets_seguimiento')
+        cursor.execute("""
+            SELECT fk_usuario, fk_equipo, fk_nombre_equipo, titulo FROM ticket_usuario WHERE id_ticket = %s
+        """, [id_ticket])
+        creador_id, fk_equipo, fk_nombre_equipo, titulo_ticket = cursor.fetchone()
+
+        # --- Respaldo, si se marcó: solo crea el registro pendiente (una sola vez;
+        # si ya existe no se duplica). El detalle se completa después desde el
+        # acceso de Respaldos. Si se desmarca y el registro sigue vacío, se borra ---
+        if es_respaldo:
+            cursor.execute("SELECT id_respaldo FROM atencion_respaldo WHERE fk_ticket=%s", [id_ticket])
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO atencion_respaldo
+                      (fk_ticket, fk_usuario_ti, fk_equipo, fk_nombre_equipo, tipo_solicitud,
+                       estatus_firmas, fecha_creacion)
+                    VALUES (%s, %s, %s, %s, %s, 'ABIERTO', %s)
+                """, [id_ticket, usuario_ti_id, fk_equipo, fk_nombre_equipo, 'ESPORADICO', datetime.now()])
+        else:
+            cursor.execute("""
+                DELETE FROM atencion_respaldo
+                WHERE fk_ticket=%s AND ruta_unidad_compartida IS NULL AND archivos_respaldar IS NULL
+            """, [id_ticket])
+
+        # --- Cambio de Pieza, si se marcó: solo crea el registro pendiente (una
+        # sola vez; si ya existe no se duplica); las piezas se completan después
+        # desde el acceso de Cambios de Pieza. Si se desmarca y sigue vacío, se borra ---
+        if es_cambio_pieza:
+            cursor.execute("SELECT id_cambio FROM atencion_cambio_pieza WHERE fk_ticket=%s AND origen='TICKET'", [id_ticket])
+            if not cursor.fetchone():
+                _guardar_cambio_pieza(cursor, id_ticket, usuario_ti_id, fk_equipo, fk_nombre_equipo,
+                                       date_type.today(), 'TICKET', piezas_danadas=[], piezas_nuevas=[],
+                                       estatus_inicial='ABIERTO')
+        else:
+            cursor.execute("""
+                DELETE FROM atencion_cambio_pieza
+                WHERE fk_ticket=%s AND origen='TICKET'
+                  AND id_cambio NOT IN (SELECT fk_cambio FROM atencion_cambio_pieza_detalle)
+            """, [id_ticket])
+
         if firma_ti_json:
-            cursor.execute("SELECT fk_usuario FROM ticket_usuario WHERE id_ticket = %s", [id_ticket])
-            creador_id = cursor.fetchone()[0]
             _crear_notificacion(cursor, creador_id, id_ticket, 'FIRMA_PENDIENTE',
                                  f'T.I ya firmó el ticket #{id_ticket} — Falta tu firma de conformidad.')
     messages.success(request, f'Atención del ticket #{id_ticket} guardada correctamente.')
@@ -544,51 +723,61 @@ def atencion_guardar(request, id_ticket):
 @login_requerido
 @nivel_requerido('modificar')
 def firma_usuario_guardar(request, id_ticket):
-    import json as json_lib
     if request.method != 'POST':
         return redirect('tickets_seguimiento')
     with connection.cursor() as cursor:
-        cursor.execute("SELECT fk_usuario FROM ticket_usuario WHERE id_ticket = %s", [id_ticket])
+        cursor.execute("SELECT fk_usuario, titulo FROM ticket_usuario WHERE id_ticket = %s", [id_ticket])
         row = cursor.fetchone()
         if not row or row[0] != request.session.get('usuario_id'):
             messages.error(request, 'No puedes firmar un ticket que no es tuyo.')
             return redirect('tickets_seguimiento')
+        titulo_ticket = row[1]
         firma_usuario_json = request.POST.get('firma_usuario_json', '').strip()
         if not firma_usuario_json:
             messages.error(request, 'Debes dibujar tu firma para dar conformidad.')
             return redirect('tickets_seguimiento')
         usuario_id = request.session.get('usuario_id')
-        cursor.execute("""
-            SELECT u.nombre, u.apellido_paterno, u.apellido_materno,
-                   r.descripcion, p.descripcion, n.descripcion
-            FROM usuarios u
-            LEFT JOIN cat_roles r ON r.id_rol = u.fk_rol
-            LEFT JOIN cat_permisos p ON p.id_permiso = r.fk_permisos
-            LEFT JOIN cat_nivel n ON n.id_nivel = p.id_nivel
-            WHERE u.id_usuario = %s
-        """, [usuario_id])
-        firmante = cursor.fetchone()
-        firma_obj = {
-            'fecha':      datetime.now().isoformat(),
-            'usuario_id': usuario_id,
-            'nombre':     ' '.join(p for p in firmante[0:3] if p) if firmante else '',
-            'rol':        firmante[3] if firmante else None,
-            'permiso':    firmante[4] if firmante else None,
-            'nivel':      firmante[5] if firmante else None,
-            'firma':      json_lib.loads(firma_usuario_json),
-        }
+        firma_obj = _firma_obj(cursor, usuario_id, firma_usuario_json)
+        firma_json = json_lib.dumps(firma_obj)
         cursor.execute("""
             UPDATE seguimiento_ticket
             SET firma_usuario=%s, estatus_firmas='FIN', fecha_cierre_atencion=%s
             WHERE fk_ticket=%s AND estatus_firmas='PTI'
-            RETURNING fk_usuario_ti
-        """, [json_lib.dumps(firma_obj), datetime.now(), id_ticket])
+            RETURNING fk_usuario_ti, es_mantenimiento, es_respaldo, es_cambio_pieza,
+                      diagnostico, solucion, lugar_actividad
+        """, [firma_json, datetime.now(), id_ticket])
         resultado = cursor.fetchone()
         if not resultado:
             messages.error(request, 'No se pudo firmar (el ticket no está listo para tu firma).')
             return redirect('tickets_seguimiento')
-        fk_usuario_ti = resultado[0]
+        (fk_usuario_ti, es_mantenimiento, es_respaldo, es_cambio_pieza,
+         diagnostico, solucion, lugar_actividad) = resultado
         cursor.execute("UPDATE ticket_usuario SET estatus='FIN' WHERE id_ticket=%s", [id_ticket])
+
+        # las tablas hermanas (si aplican) también cierran con la misma firma del usuario
+        cursor.execute("""
+            UPDATE atencion_respaldo SET firma_usuario=%s, estatus_firmas='FIN', fecha_cierre=%s
+            WHERE fk_ticket=%s AND estatus_firmas='PTI'
+        """, [firma_json, datetime.now(), id_ticket])
+        cursor.execute("""
+            UPDATE atencion_cambio_pieza SET firma_usuario=%s, estatus='FIN', fecha_cierre=%s
+            WHERE fk_ticket=%s AND estatus='PTI'
+        """, [firma_json, datetime.now(), id_ticket])
+
+        hoy = date_type.today()
+        if es_mantenimiento:
+            _registrar_actividad(cursor, f'Mantenimiento — Ticket #{id_ticket}', diagnostico, hoy,
+                                  solucion, fk_usuario_ti, 'MANTENIMIENTO', id_ticket)
+        if es_respaldo:
+            _registrar_actividad(cursor, f'Respaldo — Ticket #{id_ticket}', titulo_ticket, hoy,
+                                  None, fk_usuario_ti, 'RESPALDO', id_ticket)
+        if es_cambio_pieza:
+            _registrar_actividad(cursor, f'Cambio de Pieza — Ticket #{id_ticket}', titulo_ticket, hoy,
+                                  None, fk_usuario_ti, 'CAMBIO_PIEZA', id_ticket)
+        if not (es_mantenimiento or es_respaldo or es_cambio_pieza):
+            _registrar_actividad(cursor, titulo_ticket or f'Ticket #{id_ticket}', diagnostico, hoy,
+                                  solucion, fk_usuario_ti, 'TICKET', id_ticket)
+
         _crear_notificacion(cursor, usuario_id, id_ticket, 'FINALIZADO',
                              f'Tu ticket #{id_ticket} quedó cerrado y firmado.')
         if fk_usuario_ti:
@@ -596,6 +785,772 @@ def firma_usuario_guardar(request, id_ticket):
                                  f'El usuario firmó de conformidad el ticket #{id_ticket}. Quedó cerrado.')
     messages.success(request, f'Firmaste de conformidad el ticket #{id_ticket}.')
     return redirect('tickets_seguimiento')
+
+# --- Servicios independientes (sin ticket): Mantenimiento / Respaldo / Cambio de Pieza ---
+# Cada uno se crea desde su propio modal, dentro de su propio acceso/lista
+# (mantenimientos_lista, respaldos_lista, cambios_pieza_lista) — no hay una
+# página "Registrar Servicio" separada.
+
+def _equipos_activos(cursor):
+    cursor.execute("SELECT id_equipo, nombre_equipo FROM cat_equipos WHERE estatus != 'INA' ORDER BY nombre_equipo")
+    return [{'id_equipo': r[0], 'nombre_equipo': r[1]} for r in cursor.fetchall()]
+
+def _usuarios_activos(cursor):
+    """Para elegir al solicitante de un respaldo independiente. El formato
+    F-CECSA-TI-03 pide cargo, area, extension y correo, y eso solo se obtiene
+    ligando a un usuario real: el 'usuario asignado' del equipo es texto libre."""
+    cursor.execute("""
+        SELECT u.id_usuario, u.nombre, u.apellido_paterno, u.apellido_materno, p.nombre_puesto
+        FROM usuarios u
+        LEFT JOIN cat_puestos p ON p.id_puesto = u.fk_puesto
+        WHERE u.estatus = 'ACT'
+        ORDER BY u.nombre, u.apellido_paterno
+    """)
+    return [{
+        'id_usuario': r[0],
+        'nombre_completo': ' '.join(x for x in r[1:4] if x),
+        'puesto': r[4] or '',
+    } for r in cursor.fetchall()]
+
+# Correo corporativo que sale impreso en el formato F-CECSA-TI-03. Es fijo
+# por decision del area: no se toma del usuario. Para cambiarlo, es aqui.
+CORREO_CORPORATIVO_TI = 'auxiliar.ti@cecsa.mx'
+
+def _sin_no_aplica(valor):
+    """Los campos opcionales del formato se dejan en blanco, no con un 'N/A'
+    escrito: en el papel una casilla vacia ya significa que no aplica."""
+    if not valor:
+        return ''
+    return '' if valor.strip().upper().replace('.', '') in ('NA', 'N/A') else valor
+
+def _datos_solicitante(cursor, fk_ticket, fk_usuario_solicitante):
+    """Bloque SOLICITANTE del formato. Si el respaldo nace de un ticket manda
+    quien lo levanto; si es independiente, el usuario elegido en el modal."""
+    id_usuario = None
+    area_ticket = None
+    if fk_ticket:
+        cursor.execute("SELECT fk_usuario, area FROM ticket_usuario WHERE id_ticket = %s", [fk_ticket])
+        fila = cursor.fetchone()
+        if fila:
+            id_usuario, area_ticket = fila
+    if not id_usuario:
+        id_usuario = fk_usuario_solicitante
+    if not id_usuario:
+        return {}
+    cursor.execute("""
+        SELECT u.nombre, u.apellido_paterno, u.apellido_materno, u.email, u.telefono,
+               u.area, p.nombre_puesto
+        FROM usuarios u
+        LEFT JOIN cat_puestos p ON p.id_puesto = u.fk_puesto
+        WHERE u.id_usuario = %s
+    """, [id_usuario])
+    fila = cursor.fetchone()
+    if not fila:
+        return {}
+    return {
+        'nombre': ' '.join(x for x in fila[0:3] if x),
+        'correo': CORREO_CORPORATIVO_TI,
+        'extension': fila[4] or '',
+        'lugar': area_ticket or fila[5] or '',
+        'cargo': fila[6] or '',
+    }
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('crear')
+def servicio_mantenimiento_guardar(request):
+    if request.method != 'POST':
+        return redirect('mantenimientos_lista')
+    fk_equipo        = request.POST.get('fk_equipo', '').strip() or None
+    fk_nombre_equipo = request.POST.get('fk_nombre_equipo', '').strip() or None
+    lugar_actividad  = request.POST.get('lugar_actividad', '').strip() or None
+    descripcion      = request.POST.get('descripcion', '').strip()
+    observaciones    = request.POST.get('observaciones', '').strip() or None
+    firma_ti_json    = request.POST.get('firma_ti_json', '').strip()
+    hallazgo         = request.POST.get('hallazgo_pieza_pendiente', '').strip() or None
+    if not descripcion or not firma_ti_json:
+        messages.error(request, 'La descripción y tu firma son obligatorias.')
+        return redirect('mantenimientos_lista')
+    usuario_ti_id = request.session.get('usuario_id')
+    with connection.cursor() as cursor:
+        firma_obj = _firma_obj(cursor, usuario_ti_id, firma_ti_json)
+        destinatario = _equipo_usuario_asignado_id(cursor, fk_equipo)
+        estatus = 'PTI' if destinatario else 'FIN'
+        fk_cambio_generado = None
+        if hallazgo:
+            fk_cambio_generado = _guardar_cambio_pieza(
+                cursor, None, usuario_ti_id, fk_equipo, fk_nombre_equipo, date_type.today(),
+                'HALLAZGO_MANTENIMIENTO',
+                piezas_danadas=[{
+                    'descripcion': request.POST.get('hallazgo_descripcion', ''),
+                    'marca': request.POST.get('hallazgo_marca', ''),
+                    'modelo': request.POST.get('hallazgo_modelo', ''),
+                    'numero_serie': request.POST.get('hallazgo_serie', ''),
+                }], piezas_nuevas=[], estatus_inicial='ABIERTO')
+        cursor.execute("""
+            INSERT INTO atencion_mantenimiento_independiente
+              (fk_usuario_ti, fk_equipo, fk_nombre_equipo, lugar_actividad, descripcion, observaciones,
+               hallazgo_pieza_pendiente, fk_cambio_generado, firma_ti, estatus_firmas,
+               fecha_creacion, fecha_cierre)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id_mantenimiento
+        """, [usuario_ti_id, fk_equipo, fk_nombre_equipo, lugar_actividad, descripcion, observaciones,
+              hallazgo, fk_cambio_generado, json_lib.dumps(firma_obj), estatus, datetime.now(),
+              datetime.now() if estatus == 'FIN' else None])
+        id_mant = cursor.fetchone()[0]
+        _registrar_actividad(cursor, f'Mantenimiento independiente — {fk_nombre_equipo or "Equipo"}',
+                              descripcion, date_type.today(), observaciones, usuario_ti_id,
+                              'MANTENIMIENTO', id_mant)
+        if destinatario:
+            _crear_notificacion(cursor, destinatario, id_mant, 'SERVICIO_PENDIENTE',
+                                 f'Se registró un Mantenimiento a tu equipo {fk_nombre_equipo or ""} — pendiente tu firma.')
+    messages.success(request, 'Mantenimiento registrado correctamente.')
+    return redirect('mantenimientos_lista')
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('crear')
+def servicio_respaldo_guardar(request):
+    if request.method != 'POST':
+        return redirect('respaldos_lista')
+    fk_equipo        = request.POST.get('fk_equipo', '').strip() or None
+    fk_nombre_equipo = request.POST.get('fk_nombre_equipo', '').strip() or None
+    tipo_solicitud   = request.POST.get('tipo_solicitud', '').strip()
+    firma_ti_json    = request.POST.get('firma_ti_json', '').strip()
+    ruta             = request.POST.get('ruta_unidad_compartida', '').strip()
+    archivos         = request.POST.get('archivos_respaldar', '').strip()
+    sistema_operativo = request.POST.get('sistema_operativo', '').strip()
+    tipo_backup      = request.POST.get('tipo_backup', '').strip()
+    total_gb         = request.POST.get('total_gb_respaldar', '').strip()
+    periodicidad     = request.POST.get('periodicidad', '').strip()
+    nivel_backup     = request.POST.get('nivel_backup', '').strip()
+    agenda           = request.POST.get('agenda', '').strip()
+    horario          = request.POST.get('horario', '').strip()
+    if not all([fk_equipo, tipo_solicitud, firma_ti_json, ruta, archivos, sistema_operativo,
+                tipo_backup, total_gb, periodicidad, nivel_backup, agenda, horario]):
+        messages.error(request, 'Faltan campos obligatorios para registrar el respaldo.')
+        return redirect('respaldos_lista')
+    usuario_ti_id = request.session.get('usuario_id')
+    with connection.cursor() as cursor:
+        firma_obj = _firma_obj(cursor, usuario_ti_id, firma_ti_json)
+        destinatario = _equipo_usuario_asignado_id(cursor, fk_equipo)
+        estatus = 'PTI' if destinatario else 'FIN'
+        cursor.execute("""
+            INSERT INTO atencion_respaldo
+              (fk_ticket, fk_usuario_ti, fk_equipo, fk_nombre_equipo, tipo_solicitud,
+               tipo_fuente_datos, ruta_unidad_compartida, archivos_respaldar,
+               nombre_servidor, sistema_operativo, ip_servidor, tipo_backup,
+               observaciones_politica, total_gb_respaldar, total_gb_crecimiento,
+               periodicidad, nivel_backup, agenda, horario, retencion_dias,
+               firma_ti, estatus_firmas, fecha_creacion, fecha_cierre,
+               fk_usuario_solicitante)
+            VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id_respaldo
+        """, [
+            usuario_ti_id, fk_equipo, fk_nombre_equipo, tipo_solicitud,
+            request.POST.get('tipo_fuente_datos', '').strip() or None,
+            request.POST.get('ruta_unidad_compartida', '').strip() or None,
+            request.POST.get('archivos_respaldar', '').strip() or None,
+            fk_nombre_equipo,
+            request.POST.get('sistema_operativo', '').strip() or None,
+            request.POST.get('ip_servidor', '').strip() or None,
+            request.POST.get('tipo_backup', '').strip() or None,
+            request.POST.get('observaciones_politica', '').strip() or None,
+            request.POST.get('total_gb_respaldar', '').strip() or None,
+            request.POST.get('total_gb_crecimiento', '').strip() or None,
+            request.POST.get('periodicidad', '').strip() or None,
+            request.POST.get('nivel_backup', '').strip() or None,
+            request.POST.get('agenda', '').strip() or None,
+            request.POST.get('horario', '').strip() or None,
+            request.POST.get('retencion_dias', '').strip() or None,
+            json_lib.dumps(firma_obj), estatus, datetime.now(),
+            datetime.now() if estatus == 'FIN' else None,
+            request.POST.get('fk_usuario_solicitante', '').strip() or None,
+        ])
+        id_resp = cursor.fetchone()[0]
+        _registrar_actividad(cursor, f'Respaldo independiente — {fk_nombre_equipo or "Equipo"}',
+                              request.POST.get('tipo_fuente_datos', ''), date_type.today(), None,
+                              usuario_ti_id, 'RESPALDO', id_resp)
+        if destinatario:
+            _crear_notificacion(cursor, destinatario, id_resp, 'SERVICIO_PENDIENTE',
+                                 f'Se registró un Respaldo a tu equipo {fk_nombre_equipo or ""} — pendiente tu firma.')
+    messages.success(request, 'Respaldo registrado correctamente.')
+    return redirect('respaldos_lista')
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('crear')
+def servicio_cambio_pieza_guardar(request):
+    if request.method != 'POST':
+        return redirect('cambios_pieza_lista')
+    fk_equipo         = request.POST.get('fk_equipo', '').strip() or None
+    fk_nombre_equipo  = request.POST.get('fk_nombre_equipo', '').strip() or None
+    fecha_cambio_str  = request.POST.get('fecha_cambio', '').strip()
+    firma_ti_json     = request.POST.get('firma_ti_json', '').strip()
+    try:
+        piezas_danadas = json_lib.loads(request.POST.get('piezas_danadas_json', '[]'))
+        piezas_nuevas  = json_lib.loads(request.POST.get('piezas_nuevas_json', '[]'))
+    except (json_lib.JSONDecodeError, TypeError):
+        piezas_danadas, piezas_nuevas = [], []
+    if not fecha_cambio_str or not firma_ti_json or (not piezas_danadas and not piezas_nuevas):
+        messages.error(request, 'La fecha, tu firma y al menos una pieza son obligatorias.')
+        return redirect('cambios_pieza_lista')
+    fecha_cambio = datetime.strptime(fecha_cambio_str, '%Y-%m-%d').date()
+    usuario_ti_id = request.session.get('usuario_id')
+    with connection.cursor() as cursor:
+        firma_obj = _firma_obj(cursor, usuario_ti_id, firma_ti_json)
+        destinatario = _equipo_usuario_asignado_id(cursor, fk_equipo)
+        estatus = 'PTI' if destinatario else 'FIN'
+        id_cambio = _guardar_cambio_pieza(cursor, None, usuario_ti_id, fk_equipo, fk_nombre_equipo,
+                                           fecha_cambio, 'INDEPENDIENTE', piezas_danadas, piezas_nuevas,
+                                           firma_obj, estatus_inicial=estatus)
+        if estatus == 'FIN':
+            cursor.execute("UPDATE atencion_cambio_pieza SET fecha_cierre=%s WHERE id_cambio=%s",
+                           [datetime.now(), id_cambio])
+        _registrar_actividad(cursor, f'Cambio de Pieza independiente — {fk_nombre_equipo or "Equipo"}',
+                              None, fecha_cambio, None, usuario_ti_id, 'CAMBIO_PIEZA', id_cambio)
+        if destinatario:
+            _crear_notificacion(cursor, destinatario, id_cambio, 'SERVICIO_PENDIENTE',
+                                 f'Se registró un Cambio de Pieza a tu equipo {fk_nombre_equipo or ""} — pendiente tu firma.')
+    messages.success(request, 'Cambio de Pieza registrado correctamente.')
+    return redirect('cambios_pieza_lista')
+
+# --- Historial de mi Equipo de Cómputo (Usuario) ---
+
+_TABLA_SERVICIO = {
+    'mantenimiento': ('atencion_mantenimiento_independiente', 'id_mantenimiento', 'estatus_firmas'),
+    'respaldo':       ('atencion_respaldo', 'id_respaldo', 'estatus_firmas'),
+    'cambio_pieza':   ('atencion_cambio_pieza', 'id_cambio', 'estatus'),
+}
+_ETIQUETA_SERVICIO = {'mantenimiento': 'Mantenimiento', 'respaldo': 'Respaldo', 'cambio_pieza': 'Cambio de Pieza'}
+
+@login_requerido
+@nivel_requerido('consultar')
+def historial_mi_equipo(request):
+    usuario_id = request.session.get('usuario_id')
+    registros = []
+    with connection.cursor() as cursor:
+        equipos = _equipos_de_usuario(cursor, usuario_id)
+        ids_equipo = [e[0] for e in equipos]
+        if ids_equipo:
+            cursor.execute("""
+                SELECT fk_ticket, fk_nombre_equipo, diagnostico, estatus_firmas, fecha_creacion_atencion
+                FROM seguimiento_ticket WHERE es_mantenimiento = TRUE AND fk_equipo = ANY(%s)
+            """, [ids_equipo])
+            for fk_ticket, equipo, resumen, estatus, fecha in cursor.fetchall():
+                registros.append({'tipo': 'mantenimiento', 'id': fk_ticket, 'equipo': equipo, 'resumen': resumen,
+                                   'estatus': estatus, 'fecha': fecha, 'firmable_aqui': False, 'fk_ticket': fk_ticket})
+            cursor.execute("""
+                SELECT id_mantenimiento, fk_nombre_equipo, descripcion, estatus_firmas, fecha_creacion
+                FROM atencion_mantenimiento_independiente WHERE fk_equipo = ANY(%s)
+            """, [ids_equipo])
+            for id_m, equipo, resumen, estatus, fecha in cursor.fetchall():
+                registros.append({'tipo': 'mantenimiento', 'id': id_m, 'equipo': equipo, 'resumen': resumen,
+                                   'estatus': estatus, 'fecha': fecha, 'firmable_aqui': True, 'fk_ticket': None})
+            cursor.execute("""
+                SELECT id_respaldo, fk_nombre_equipo, tipo_fuente_datos, estatus_firmas, fecha_creacion, fk_ticket
+                FROM atencion_respaldo WHERE fk_equipo = ANY(%s)
+            """, [ids_equipo])
+            for id_r, equipo, resumen, estatus, fecha, fk_ticket in cursor.fetchall():
+                registros.append({'tipo': 'respaldo', 'id': id_r, 'equipo': equipo,
+                                   'resumen': resumen or 'Respaldo de información', 'estatus': estatus,
+                                   'fecha': fecha, 'firmable_aqui': fk_ticket is None, 'fk_ticket': fk_ticket})
+            cursor.execute("""
+                SELECT id_cambio, fk_nombre_equipo, estatus, fecha_creacion, fk_ticket
+                FROM atencion_cambio_pieza WHERE fk_equipo = ANY(%s) AND estatus != 'ABIERTO'
+            """, [ids_equipo])
+            for id_c, equipo, estatus, fecha, fk_ticket in cursor.fetchall():
+                registros.append({'tipo': 'cambio_pieza', 'id': id_c, 'equipo': equipo, 'resumen': 'Cambio de pieza',
+                                   'estatus': estatus, 'fecha': fecha, 'firmable_aqui': fk_ticket is None,
+                                   'fk_ticket': fk_ticket})
+        registros.sort(key=lambda r: r['fecha'] or datetime.min, reverse=True)
+    ctx = {
+        'registros': registros,
+        'sin_equipos': not ids_equipo if 'ids_equipo' in locals() else True,
+        'rol_id': request.session.get('usuario_rol_id', ''),
+        'username': request.session.get('usuario_username', ''),
+        'nombre': request.session.get('usuario_nombre', ''),
+        'apellido': request.session.get('usuario_paterno', ''),
+        'usuario_area': request.session.get('usuario_area', ''),
+    }
+    return render(request, 'servicios/historial_equipo.html', ctx)
+
+@login_requerido
+@nivel_requerido('consultar')
+def historial_mi_equipo_datos(request, tipo, id_registro):
+    if tipo not in _TABLA_SERVICIO:
+        return JsonResponse({'error': 'Tipo inválido'}, status=404)
+    tabla, campo_id, campo_estatus = _TABLA_SERVICIO[tipo]
+    with connection.cursor() as cursor:
+        if tipo == 'mantenimiento':
+            cursor.execute(f"""
+                SELECT descripcion, observaciones, hallazgo_pieza_pendiente, fk_nombre_equipo, {campo_estatus}
+                FROM {tabla} WHERE {campo_id} = %s
+            """, [id_registro])
+            row = cursor.fetchone()
+            if not row:
+                return JsonResponse({'error': 'No encontrado'}, status=404)
+            data = {'descripcion': row[0], 'observaciones': row[1], 'hallazgo': row[2],
+                    'equipo': row[3], 'estatus': row[4]}
+        elif tipo == 'respaldo':
+            cursor.execute(f"""
+                SELECT tipo_solicitud, tipo_fuente_datos, archivos_respaldar, fk_nombre_equipo, {campo_estatus}
+                FROM {tabla} WHERE {campo_id} = %s
+            """, [id_registro])
+            row = cursor.fetchone()
+            if not row:
+                return JsonResponse({'error': 'No encontrado'}, status=404)
+            data = {'tipo_solicitud': row[0], 'tipo_fuente_datos': row[1], 'archivos': row[2],
+                    'equipo': row[3], 'estatus': row[4]}
+        else:
+            cursor.execute(f"SELECT fk_nombre_equipo, {campo_estatus} FROM {tabla} WHERE {campo_id} = %s", [id_registro])
+            row = cursor.fetchone()
+            if not row:
+                return JsonResponse({'error': 'No encontrado'}, status=404)
+            danadas, nuevas = _piezas_del_cambio(cursor, id_registro)
+            data = {'equipo': row[0], 'estatus': row[1], 'danadas': danadas, 'nuevas': nuevas}
+    return JsonResponse(data)
+
+@login_requerido
+@nivel_requerido('modificar')
+def historial_mi_equipo_firmar(request, tipo, id_registro):
+    if request.method != 'POST':
+        return redirect('historial_mi_equipo')
+    if tipo not in _TABLA_SERVICIO:
+        messages.error(request, 'Tipo inválido.')
+        return redirect('historial_mi_equipo')
+    firma_json = request.POST.get('firma_usuario_json', '').strip()
+    if not firma_json:
+        messages.error(request, 'Debes dibujar tu firma para dar conformidad.')
+        return redirect('historial_mi_equipo')
+    usuario_id = request.session.get('usuario_id')
+    tabla, campo_id, campo_estatus = _TABLA_SERVICIO[tipo]
+    filtro_ticket = '' if tipo == 'mantenimiento' else 'AND fk_ticket IS NULL'
+    with connection.cursor() as cursor:
+        # el registro debe pertenecer a un equipo que sí está asignado a este usuario
+        cursor.execute(f"SELECT fk_equipo FROM {tabla} WHERE {campo_id} = %s {filtro_ticket}", [id_registro])
+        fila = cursor.fetchone()
+        if not fila or _equipo_usuario_asignado_id(cursor, fila[0]) != usuario_id:
+            messages.error(request, 'No puedes firmar un registro que no es de tu equipo.')
+            return redirect('historial_mi_equipo')
+        firma_obj = _firma_obj(cursor, usuario_id, firma_json)
+        cursor.execute(f"""
+            UPDATE {tabla} SET firma_usuario=%s, {campo_estatus}='FIN', fecha_cierre=%s
+            WHERE {campo_id}=%s AND {campo_estatus}='PTI' {filtro_ticket}
+            RETURNING fk_usuario_ti, fk_nombre_equipo
+        """, [json_lib.dumps(firma_obj), datetime.now(), id_registro])
+        row = cursor.fetchone()
+        if not row:
+            messages.error(request, 'No se pudo firmar (no está listo para tu firma).')
+            return redirect('historial_mi_equipo')
+        fk_usuario_ti, nombre_equipo = row
+        etiqueta = _ETIQUETA_SERVICIO[tipo]
+        _registrar_actividad(cursor, f'{etiqueta} — {nombre_equipo or "Equipo"} (conformidad)', None,
+                              date_type.today(), None, fk_usuario_ti, tipo.upper(), id_registro)
+        if fk_usuario_ti:
+            _crear_notificacion(cursor, fk_usuario_ti, id_registro, 'FINALIZADO',
+                                 f'El usuario firmó de conformidad el {etiqueta} de {nombre_equipo or "su equipo"}.')
+    messages.success(request, 'Firmaste de conformidad correctamente.')
+    return redirect('historial_mi_equipo')
+
+# --- Refaccionamientos Pendientes (T.I): cambios de pieza abiertos desde un hallazgo ---
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def mantenimientos_lista(request):
+    """Todos los mantenimientos de todos los equipos: los que nacieron de un
+    ticket (seguimiento_ticket.es_mantenimiento) y los independientes."""
+    registros = []
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT s.fk_ticket, s.fk_nombre_equipo, s.diagnostico, s.estatus_firmas, s.fecha_creacion_atencion,
+                   ti.nombre, ti.apellido_paterno, ti.apellido_materno
+            FROM seguimiento_ticket s
+            LEFT JOIN usuarios ti ON ti.id_usuario = s.fk_usuario_ti
+            WHERE s.es_mantenimiento = TRUE
+        """)
+        for fk_ticket, equipo, resumen, estatus, fecha, *tec in cursor.fetchall():
+            registros.append({'origen': 'ticket', 'id': fk_ticket, 'equipo': equipo, 'resumen': resumen,
+                               'estatus': estatus, 'fecha': fecha, 'tecnico': ' '.join(p for p in tec if p)})
+        cursor.execute("""
+            SELECT m.id_mantenimiento, m.fk_nombre_equipo, m.descripcion, m.estatus_firmas, m.fecha_creacion,
+                   ti.nombre, ti.apellido_paterno, ti.apellido_materno
+            FROM atencion_mantenimiento_independiente m
+            LEFT JOIN usuarios ti ON ti.id_usuario = m.fk_usuario_ti
+        """)
+        for id_m, equipo, resumen, estatus, fecha, *tec in cursor.fetchall():
+            registros.append({'origen': 'independiente', 'id': id_m, 'equipo': equipo, 'resumen': resumen,
+                               'estatus': estatus, 'fecha': fecha, 'tecnico': ' '.join(p for p in tec if p)})
+        equipos = _equipos_activos(cursor)
+    registros.sort(key=lambda r: r['fecha'] or datetime.min, reverse=True)
+    ctx = {
+        'registros': registros,
+        'equipos': equipos,
+        'rol_id': request.session.get('usuario_rol_id', ''),
+        'username': request.session.get('usuario_username', ''),
+        'nombre': request.session.get('usuario_nombre', ''),
+        'apellido': request.session.get('usuario_paterno', ''),
+        'usuario_area': request.session.get('usuario_area', ''),
+    }
+    return render(request, 'servicios/mantenimientos.html', ctx)
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def mantenimiento_consultar_datos(request, origen, id_registro):
+    with connection.cursor() as cursor:
+        if origen == 'ticket':
+            cursor.execute("""
+                SELECT s.fk_nombre_equipo, s.lugar_actividad, s.diagnostico, s.solucion, s.observacion,
+                       ti.nombre, ti.apellido_paterno, ti.apellido_materno
+                FROM seguimiento_ticket s
+                LEFT JOIN usuarios ti ON ti.id_usuario = s.fk_usuario_ti
+                WHERE s.fk_ticket = %s
+            """, [id_registro])
+            row = cursor.fetchone()
+            if not row:
+                return JsonResponse({'error': 'No encontrado'}, status=404)
+            return JsonResponse({
+                'equipo': row[0], 'lugar_actividad': row[1],
+                'diagnostico': row[2], 'solucion': row[3], 'observacion': row[4],
+                'tecnico': ' '.join(p for p in row[5:8] if p),
+            })
+        cursor.execute("""
+            SELECT m.fk_nombre_equipo, m.lugar_actividad, m.descripcion, m.observaciones,
+                   m.hallazgo_pieza_pendiente, ti.nombre, ti.apellido_paterno, ti.apellido_materno
+            FROM atencion_mantenimiento_independiente m
+            LEFT JOIN usuarios ti ON ti.id_usuario = m.fk_usuario_ti
+            WHERE m.id_mantenimiento = %s
+        """, [id_registro])
+        row = cursor.fetchone()
+        if not row:
+            return JsonResponse({'error': 'No encontrado'}, status=404)
+        return JsonResponse({
+            'equipo': row[0], 'lugar_actividad': row[1],
+            'descripcion': row[2], 'observaciones': row[3], 'hallazgo': row[4],
+            'tecnico': ' '.join(p for p in row[5:8] if p),
+        })
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def respaldos_lista(request):
+    """Todos los respaldos de todos los equipos (de ticket o independientes:
+    ambos viven en la misma tabla, fk_ticket queda NULL en los independientes)."""
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT r.id_respaldo, r.fk_ticket, r.fk_nombre_equipo, r.tipo_solicitud,
+                   r.tipo_fuente_datos, r.estatus_firmas, r.fecha_creacion,
+                   ti.nombre, ti.apellido_paterno, ti.apellido_materno
+            FROM atencion_respaldo r
+            LEFT JOIN usuarios ti ON ti.id_usuario = r.fk_usuario_ti
+            ORDER BY r.fecha_creacion DESC
+        """)
+        registros = [{
+            'id': r[0], 'fk_ticket': r[1], 'equipo': r[2], 'tipo_solicitud': r[3],
+            'resumen': r[4] or 'Respaldo de información', 'estatus': r[5], 'fecha': r[6],
+            'tecnico': ' '.join(p for p in r[7:10] if p),
+        } for r in cursor.fetchall()]
+        equipos = _equipos_activos(cursor)
+        usuarios = _usuarios_activos(cursor)
+    ctx = {
+        'registros': registros,
+        'equipos': equipos,
+        'usuarios': usuarios,
+        'rol_id': request.session.get('usuario_rol_id', ''),
+        'username': request.session.get('usuario_username', ''),
+        'nombre': request.session.get('usuario_nombre', ''),
+        'apellido': request.session.get('usuario_paterno', ''),
+        'usuario_area': request.session.get('usuario_area', ''),
+    }
+    return render(request, 'servicios/respaldos.html', ctx)
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def cambios_pieza_lista(request):
+    """Todos los cambios de pieza de todos los equipos — incluye los que
+    quedaron ABIERTOS por un hallazgo de mantenimiento, pendientes de refacción."""
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT c.id_cambio, c.fk_ticket, c.fk_nombre_equipo, c.origen, c.estatus, c.fecha_creacion,
+                   ti.nombre, ti.apellido_paterno, ti.apellido_materno
+            FROM atencion_cambio_pieza c
+            LEFT JOIN usuarios ti ON ti.id_usuario = c.fk_usuario_ti
+            ORDER BY c.fecha_creacion DESC
+        """)
+        registros = [{
+            'id': r[0], 'fk_ticket': r[1], 'equipo': r[2], 'origen': r[3], 'estatus': r[4], 'fecha': r[5],
+            'tecnico': ' '.join(p for p in r[6:9] if p),
+        } for r in cursor.fetchall()]
+        equipos = _equipos_activos(cursor)
+    ctx = {
+        'registros': registros,
+        'equipos': equipos,
+        'rol_id': request.session.get('usuario_rol_id', ''),
+        'username': request.session.get('usuario_username', ''),
+        'nombre': request.session.get('usuario_nombre', ''),
+        'apellido': request.session.get('usuario_paterno', ''),
+        'usuario_area': request.session.get('usuario_area', ''),
+    }
+    return render(request, 'servicios/cambios_pieza.html', ctx)
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def respaldo_datos(request, id_respaldo):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT fk_ticket, fk_nombre_equipo, estatus_firmas, tipo_solicitud, tipo_fuente_datos,
+                   ruta_unidad_compartida, archivos_respaldar, nombre_servidor, sistema_operativo,
+                   ip_servidor, tipo_backup, observaciones_politica, total_gb_respaldar,
+                   total_gb_crecimiento, periodicidad, nivel_backup, agenda, horario, retencion_dias
+            FROM atencion_respaldo WHERE id_respaldo = %s
+        """, [id_respaldo])
+        row = cursor.fetchone()
+        if not row:
+            return JsonResponse({'error': 'No encontrado'}, status=404)
+    return JsonResponse({
+        'fk_ticket': row[0], 'equipo': row[1], 'estatus': row[2],
+        'tipo_solicitud': row[3], 'tipo_fuente_datos': row[4], 'ruta_unidad_compartida': row[5],
+        'archivos_respaldar': row[6], 'nombre_servidor': row[7], 'sistema_operativo': row[8],
+        'ip_servidor': row[9], 'tipo_backup': row[10], 'observaciones_politica': row[11],
+        'total_gb_respaldar': row[12], 'total_gb_crecimiento': row[13], 'periodicidad': row[14],
+        'nivel_backup': row[15], 'agenda': row[16], 'horario': row[17], 'retencion_dias': row[18],
+    })
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('modificar')
+def respaldo_completar(request, id_respaldo):
+    if request.method != 'POST':
+        return redirect('respaldos_lista')
+    tipo_solicitud   = request.POST.get('tipo_solicitud', '').strip()
+    firma_ti_json    = request.POST.get('firma_ti_json', '').strip()
+    ruta             = request.POST.get('ruta_unidad_compartida', '').strip()
+    archivos         = request.POST.get('archivos_respaldar', '').strip()
+    nombre_servidor  = request.POST.get('nombre_servidor', '').strip()
+    sistema_operativo = request.POST.get('sistema_operativo', '').strip()
+    tipo_backup      = request.POST.get('tipo_backup', '').strip()
+    total_gb         = request.POST.get('total_gb_respaldar', '').strip()
+    horario          = request.POST.get('horario', '').strip()
+    periodicidad     = request.POST.get('periodicidad', '').strip()
+    nivel_backup     = request.POST.get('nivel_backup', '').strip()
+    agenda           = request.POST.get('agenda', '').strip()
+    if not all([tipo_solicitud, ruta, archivos, nombre_servidor,
+                sistema_operativo, tipo_backup, total_gb, horario,
+                periodicidad, nivel_backup, agenda]):
+        messages.error(request, 'Faltan campos obligatorios para completar el respaldo.')
+        return redirect('respaldos_lista')
+    usuario_ti_id = request.session.get('usuario_id')
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT fk_equipo, fk_nombre_equipo, estatus_firmas, fk_ticket FROM atencion_respaldo WHERE id_respaldo = %s", [id_respaldo])
+        row = cursor.fetchone()
+        if not row or row[2] != 'ABIERTO':
+            messages.error(request, 'Este respaldo ya no está pendiente.')
+            return redirect('respaldos_lista')
+        fk_equipo, fk_nombre_equipo, _, fk_ticket = row
+        destinatario = None
+        if firma_ti_json:
+            firma_obj = _firma_obj(cursor, usuario_ti_id, firma_ti_json)
+            destinatario = _equipo_usuario_asignado_id(cursor, fk_equipo)
+            estatus = 'PTI' if destinatario else 'FIN'
+            firma_val = json_lib.dumps(firma_obj)
+            fecha_cierre_val = datetime.now() if estatus == 'FIN' else None
+        else:
+            estatus = 'ABIERTO'
+            firma_val = None
+            fecha_cierre_val = None
+        cursor.execute("""
+            UPDATE atencion_respaldo SET
+              tipo_solicitud=%s, tipo_fuente_datos=%s, ruta_unidad_compartida=%s, archivos_respaldar=%s,
+              nombre_servidor=%s, sistema_operativo=%s, ip_servidor=%s, tipo_backup=%s,
+              observaciones_politica=%s, total_gb_respaldar=%s, total_gb_crecimiento=%s,
+              periodicidad=%s, nivel_backup=%s, agenda=%s, horario=%s, retencion_dias=%s,
+              firma_ti=%s, estatus_firmas=%s, fecha_cierre=%s
+            WHERE id_respaldo=%s
+        """, [
+            tipo_solicitud,
+            request.POST.get('tipo_fuente_datos', '').strip() or None,
+            request.POST.get('ruta_unidad_compartida', '').strip() or None,
+            request.POST.get('archivos_respaldar', '').strip() or None,
+            request.POST.get('nombre_servidor', '').strip() or None,
+            request.POST.get('sistema_operativo', '').strip() or None,
+            request.POST.get('ip_servidor', '').strip() or None,
+            request.POST.get('tipo_backup', '').strip() or None,
+            request.POST.get('observaciones_politica', '').strip() or None,
+            request.POST.get('total_gb_respaldar', '').strip() or None,
+            request.POST.get('total_gb_crecimiento', '').strip() or None,
+            request.POST.get('periodicidad', '').strip() or None,
+            request.POST.get('nivel_backup', '').strip() or None,
+            request.POST.get('agenda', '').strip() or None,
+            request.POST.get('horario', '').strip() or None,
+            request.POST.get('retencion_dias', '').strip() or None,
+            firma_val, estatus, fecha_cierre_val,
+            id_respaldo,
+        ])
+        if firma_ti_json:
+            _registrar_actividad(cursor, f'Respaldo completado — {fk_nombre_equipo or "Equipo"}',
+                                  request.POST.get('tipo_fuente_datos', ''), date_type.today(), None,
+                                  usuario_ti_id, 'RESPALDO', id_respaldo)
+            if destinatario and fk_ticket is None:
+                _crear_notificacion(cursor, destinatario, id_respaldo, 'SERVICIO_PENDIENTE',
+                                     f'Se completó el Respaldo pendiente de tu equipo {fk_nombre_equipo or ""} — pendiente tu firma.')
+            messages.success(request, 'Respaldo completado correctamente.')
+        else:
+            messages.success(request, 'Respaldo guardado. Puedes firmar más tarde para completarlo.')
+    return redirect('respaldos_lista')
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def refaccionamiento_datos(request, id_cambio):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT fk_ticket, fk_nombre_equipo, fecha_cambio, estatus FROM atencion_cambio_pieza WHERE id_cambio = %s
+        """, [id_cambio])
+        row = cursor.fetchone()
+        if not row:
+            return JsonResponse({'error': 'No encontrado'}, status=404)
+        danadas, nuevas = _piezas_del_cambio(cursor, id_cambio)
+    return JsonResponse({
+        'fk_ticket': row[0], 'equipo': row[1],
+        'fecha_cambio': row[2].strftime('%Y-%m-%d') if row[2] else '',
+        'estatus': row[3], 'danadas': danadas, 'nuevas': nuevas,
+    })
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('modificar')
+def refaccionamiento_completar(request, id_cambio):
+    if request.method != 'POST':
+        return redirect('cambios_pieza_lista')
+    firma_ti_json = request.POST.get('firma_ti_json', '').strip()
+    try:
+        piezas_danadas = json_lib.loads(request.POST.get('piezas_danadas_json', '[]'))
+    except (json_lib.JSONDecodeError, TypeError):
+        piezas_danadas = []
+    try:
+        piezas_nuevas = json_lib.loads(request.POST.get('piezas_nuevas_json', '[]'))
+    except (json_lib.JSONDecodeError, TypeError):
+        piezas_nuevas = []
+    if not (piezas_danadas or piezas_nuevas):
+        messages.error(request, 'Indica al menos una pieza (dañada o nueva) para guardar.')
+        return redirect('cambios_pieza_lista')
+    usuario_ti_id = request.session.get('usuario_id')
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT fk_equipo, fk_nombre_equipo, estatus, fk_ticket FROM atencion_cambio_pieza WHERE id_cambio = %s", [id_cambio])
+        row = cursor.fetchone()
+        if not row or row[2] != 'ABIERTO':
+            messages.error(request, 'Este refaccionamiento ya no está pendiente.')
+            return redirect('cambios_pieza_lista')
+        fk_equipo, fk_nombre_equipo, _, fk_ticket = row
+        cursor.execute("DELETE FROM atencion_cambio_pieza_detalle WHERE fk_cambio = %s", [id_cambio])
+        for tipo, piezas in (('DANADA', piezas_danadas), ('NUEVA', piezas_nuevas)):
+            for pieza in piezas:
+                cursor.execute("""
+                    INSERT INTO atencion_cambio_pieza_detalle (fk_cambio, tipo, cantidad, descripcion, marca, modelo, numero_serie)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, [id_cambio, tipo, pieza.get('cantidad') or 1, (pieza.get('descripcion') or '')[:200],
+                      (pieza.get('marca') or '')[:100], (pieza.get('modelo') or '')[:100],
+                      (pieza.get('numero_serie') or '')[:100]])
+        if firma_ti_json:
+            firma_obj = _firma_obj(cursor, usuario_ti_id, firma_ti_json)
+            destinatario = _equipo_usuario_asignado_id(cursor, fk_equipo)
+            estatus = 'PTI' if destinatario else 'FIN'
+            cursor.execute("""
+                UPDATE atencion_cambio_pieza SET estatus=%s, firma_ti=%s, fecha_cierre=%s WHERE id_cambio=%s
+            """, [estatus, json_lib.dumps(firma_obj), datetime.now() if estatus == 'FIN' else None, id_cambio])
+            _registrar_actividad(cursor, f'Cambio de Pieza completado — {fk_nombre_equipo or "Equipo"}', None,
+                                  date_type.today(), None, usuario_ti_id, 'CAMBIO_PIEZA', id_cambio)
+            if destinatario and fk_ticket is None:
+                _crear_notificacion(cursor, destinatario, id_cambio, 'SERVICIO_PENDIENTE',
+                                     f'Se completó el Cambio de Pieza pendiente de tu equipo {fk_nombre_equipo or ""} — pendiente tu firma.')
+            messages.success(request, 'Refaccionamiento completado correctamente.')
+        else:
+            messages.success(request, 'Piezas guardadas. Puedes firmar más tarde para completar el refaccionamiento.')
+    return redirect('cambios_pieza_lista')
+
+# --- Reporte de Actividades (F-CECSA-TI-05): bitácora por rango de fechas ---
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def reporte_actividades_vista(request):
+    ctx = {
+        'rol_id': request.session.get('usuario_rol_id', ''),
+        'username': request.session.get('usuario_username', ''),
+        'nombre': request.session.get('usuario_nombre', ''),
+        'apellido': request.session.get('usuario_paterno', ''),
+        'usuario_area': request.session.get('usuario_area', ''),
+    }
+    return render(request, 'servicios/reporte_actividades.html', ctx)
+
+def _actividades_del_rango(desde, hasta):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT a.actividad, a.descripcion, a.fecha_actividad, a.observaciones,
+                   u.nombre, u.apellido_paterno, u.apellido_materno
+            FROM reporte_actividades a
+            LEFT JOIN usuarios u ON u.id_usuario = a.fk_usuario_ti
+            WHERE a.fecha_actividad BETWEEN %s AND %s
+            ORDER BY a.fecha_actividad, a.fecha_creacion
+        """, [desde, hasta])
+        return [{
+            'actividad': r[0], 'descripcion': r[1] or '—', 'fecha': r[2].strftime('%d/%b/%Y'),
+            'observaciones': r[3] or '—', 'tecnico': ' '.join(p for p in r[4:7] if p) or '—',
+        } for r in cursor.fetchall()]
+
+def _config_valor(cursor, clave, default=''):
+    cursor.execute("SELECT valor FROM config_general WHERE clave = %s", [clave])
+    row = cursor.fetchone()
+    return row[0] if row and row[0] else default
+
+@login_requerido
+@rol_requerido('ti1')
+@nivel_requerido('consultar')
+def reporte_actividades_documento(request):
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    try:
+        f_desde = datetime.strptime(desde, '%Y-%m-%d').date()
+        f_hasta = datetime.strptime(hasta, '%Y-%m-%d').date()
+    except ValueError:
+        messages.error(request, 'Rango de fechas inválido.')
+        return redirect('reporte_actividades')
+    with connection.cursor() as cursor:
+        numero_obra = _config_valor(cursor, 'numero_obra')
+        descripcion_obra = _config_valor(cursor, 'descripcion_obra')
+    ctx = {
+        'desde': desde, 'hasta': hasta,
+        'desde_fmt': f_desde.strftime('%d/%b/%Y'), 'hasta_fmt': f_hasta.strftime('%d/%b/%Y'),
+        'numero_obra': numero_obra, 'descripcion_obra': descripcion_obra,
+        'actividades': _actividades_del_rango(f_desde, f_hasta),
+        'niveles': _niveles_sesion(request),
+    }
+    return render(request, 'servicios/reporte_actividades_doc.html', ctx)
+
+@login_requerido
+@nivel_requerido('exportar')
+def reporte_actividades_documento_pdf(request):
+    from django.conf import settings
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    origen = request.build_absolute_uri('/')
+    url = request.build_absolute_uri(f"/reporte-actividades/documento/?desde={desde}&hasta={hasta}")
+    cookie_nombre = settings.SESSION_COOKIE_NAME
+    cookie_valor = request.COOKIES.get(cookie_nombre)
+    try:
+        pdf_bytes = _generar_pdf(url, cookie_nombre, cookie_valor, origen)
+    except Exception:
+        messages.error(request, 'No se pudo generar el PDF, inténtalo de nuevo.')
+        return redirect('reporte_actividades')
+    from django.http import HttpResponse
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="reporte-actividades-{desde}-a-{hasta}.pdf"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 @login_requerido
 @nivel_requerido('consultar')
@@ -614,7 +1569,7 @@ def reporte_mantenimiento(request, id_ticket):
                    t.descripcion,
                    uc.nombre, uc.apellido_paterno, uc.apellido_materno,
                    ti.nombre, ti.apellido_paterno, ti.apellido_materno,
-                   s.firma_ti
+                   s.firma_ti, s.es_mantenimiento
             FROM seguimiento_ticket s
             JOIN ticket_usuario t ON t.id_ticket = s.fk_ticket
             LEFT JOIN usuarios uc ON uc.id_usuario = t.fk_usuario
@@ -624,6 +1579,9 @@ def reporte_mantenimiento(request, id_ticket):
         row = cursor.fetchone()
     if not row or row[11] != 'FIN':
         messages.error(request, 'El reporte solo está disponible cuando el ticket ya fue firmado por ambas partes.')
+        return redirect('tickets_seguimiento')
+    if not row[20]:
+        messages.error(request, 'Este ticket no tiene marcado Mantenimiento, no genera este reporte.')
         return redirect('tickets_seguimiento')
     firma_ti_data = row[19]
     if isinstance(firma_ti_data, str):
@@ -739,6 +1697,244 @@ def reporte_mantenimiento_pdf(request, id_ticket):
         _pdf_cache[clave] = pdf_bytes
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="reporte-mantenimiento-ticket-{id_ticket}.pdf"'
+    response['Cache-Control'] = 'no-store'
+    return response
+
+# --- Reportes de los servicios independientes (Mantenimiento / Respaldo / Cambio de Pieza) ---
+
+@login_requerido
+@nivel_requerido('consultar')
+def reporte_mantenimiento_independiente(request, id_mantenimiento):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT m.fk_equipo, m.fk_nombre_equipo, m.lugar_actividad, m.descripcion, m.observaciones,
+                   m.hallazgo_pieza_pendiente, m.estatus_firmas, m.fecha_creacion, m.fecha_cierre,
+                   m.firma_ti, ti.nombre, ti.apellido_paterno, ti.apellido_materno
+            FROM atencion_mantenimiento_independiente m
+            LEFT JOIN usuarios ti ON ti.id_usuario = m.fk_usuario_ti
+            WHERE m.id_mantenimiento = %s
+        """, [id_mantenimiento])
+        row = cursor.fetchone()
+    if not row:
+        messages.error(request, 'Registro no encontrado.')
+        return redirect('dashboard')
+    if not _puede_ver_servicio_independiente(request, row[0]):
+        messages.error(request, 'No tienes permiso para ver este reporte.')
+        return redirect('dashboard')
+    firma_ti_data = row[9]
+    if isinstance(firma_ti_data, str):
+        firma_ti_data = json_lib.loads(firma_ti_data)
+    firma_trazos = firma_ti_data.get('firma', []) if isinstance(firma_ti_data, dict) else []
+    ctx = {
+        'id_mantenimiento': id_mantenimiento,
+        'nombre_equipo': row[1], 'lugar_actividad': row[2], 'descripcion': row[3],
+        'observaciones': row[4], 'hallazgo': row[5], 'fecha': row[8] or row[7],
+        'firma_ti_json': json_lib.dumps(firma_trazos),
+        'tecnico_nombre': ' '.join(p for p in row[10:13] if p),
+        'niveles': _niveles_sesion(request),
+    }
+    return render(request, 'servicios/reporte_mantenimiento_indep.html', ctx)
+
+@login_requerido
+@nivel_requerido('exportar')
+def reporte_mantenimiento_independiente_pdf(request, id_mantenimiento):
+    import os
+    from django.conf import settings
+    from django.urls import reverse
+    from django.template.loader import get_template
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT fk_equipo FROM atencion_mantenimiento_independiente WHERE id_mantenimiento = %s", [id_mantenimiento])
+        row = cursor.fetchone()
+    if not row or not _puede_ver_servicio_independiente(request, row[0]):
+        messages.error(request, 'No tienes permiso para descargar este reporte.')
+        return redirect('dashboard')
+    mtime = os.path.getmtime(get_template('servicios/reporte_mantenimiento_indep.html').origin.name)
+    clave = ('mant_indep', str(id_mantenimiento), mtime)
+    pdf_bytes = _pdf_cache.get(clave)
+    if pdf_bytes is None:
+        origen = request.build_absolute_uri('/')
+        url = request.build_absolute_uri(reverse('reporte_mantenimiento_independiente', args=[id_mantenimiento]))
+        try:
+            pdf_bytes = _generar_pdf(url, settings.SESSION_COOKIE_NAME,
+                                      request.COOKIES.get(settings.SESSION_COOKIE_NAME), origen)
+        except Exception:
+            messages.error(request, 'No se pudo generar el PDF, inténtalo de nuevo.')
+            return redirect('reporte_mantenimiento_independiente', id_mantenimiento=id_mantenimiento)
+        _pdf_cache[clave] = pdf_bytes
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="reporte-mantenimiento-{id_mantenimiento}.pdf"'
+    response['Cache-Control'] = 'no-store'
+    return response
+
+@login_requerido
+@nivel_requerido('consultar')
+def reporte_respaldo(request, id_respaldo):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT r.fk_equipo, r.fk_nombre_equipo, r.tipo_solicitud, r.tipo_fuente_datos,
+                   r.ruta_unidad_compartida, r.archivos_respaldar, r.nombre_servidor, r.sistema_operativo,
+                   r.ip_servidor, r.tipo_backup, r.observaciones_politica, r.total_gb_respaldar,
+                   r.total_gb_crecimiento, r.periodicidad, r.nivel_backup, r.agenda, r.horario,
+                   r.retencion_dias, r.firma_ti, r.fecha_creacion, r.fecha_cierre,
+                   ti.nombre, ti.apellido_paterno, ti.apellido_materno,
+                   r.fk_ticket, r.fk_usuario_solicitante, r.firma_usuario
+            FROM atencion_respaldo r
+            LEFT JOIN usuarios ti ON ti.id_usuario = r.fk_usuario_ti
+            WHERE r.id_respaldo = %s
+        """, [id_respaldo])
+        row = cursor.fetchone()
+        solicitante = _datos_solicitante(cursor, row[24], row[25]) if row else {}
+    if not row:
+        messages.error(request, 'Registro no encontrado.')
+        return redirect('dashboard')
+    if not _puede_ver_servicio_independiente(request, row[0]):
+        messages.error(request, 'No tienes permiso para ver este reporte.')
+        return redirect('dashboard')
+    def _trazos(dato):
+        if isinstance(dato, str):
+            dato = json_lib.loads(dato)
+        return dato.get('firma', []) if isinstance(dato, dict) else []
+    firma_trazos = _trazos(row[18])
+    # El formato lo firma quien solicita el respaldo, no el area de T.I
+    firma_solicitante = _trazos(row[26]) if row[26] else []
+    ctx = {
+        'id_respaldo': id_respaldo, 'nombre_equipo': row[1], 'tipo_solicitud': row[2],
+        'tipo_fuente_datos': row[3], 'ruta_unidad_compartida': row[4], 'archivos_respaldar': row[5],
+        'nombre_servidor': row[6], 'sistema_operativo': row[7],
+        'ip_servidor': _sin_no_aplica(row[8]),
+        'tipo_backup': row[9], 'observaciones_politica': row[10], 'total_gb_respaldar': row[11],
+        'total_gb_crecimiento': row[12], 'periodicidad': row[13], 'nivel_backup': row[14],
+        'agenda': row[15], 'horario': row[16], 'retencion_dias': row[17],
+        'fecha': row[20] or row[19],
+        'firma_ti_json': json_lib.dumps(firma_trazos),
+        'firma_solicitante_json': json_lib.dumps(firma_solicitante),
+        'tecnico_nombre': ' '.join(p for p in row[21:24] if p),
+        'solicitante': solicitante,
+        'niveles': _niveles_sesion(request),
+    }
+    return render(request, 'servicios/reporte_respaldo.html', ctx)
+
+@login_requerido
+@nivel_requerido('exportar')
+def reporte_respaldo_pdf(request, id_respaldo):
+    import os
+    from django.conf import settings
+    from django.urls import reverse
+    from django.template.loader import get_template
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT fk_equipo FROM atencion_respaldo WHERE id_respaldo = %s", [id_respaldo])
+        row = cursor.fetchone()
+    if not row or not _puede_ver_servicio_independiente(request, row[0]):
+        messages.error(request, 'No tienes permiso para descargar este reporte.')
+        return redirect('dashboard')
+    mtime = os.path.getmtime(get_template('servicios/reporte_respaldo.html').origin.name)
+    clave = ('respaldo', str(id_respaldo), mtime)
+    pdf_bytes = _pdf_cache.get(clave)
+    if pdf_bytes is None:
+        origen = request.build_absolute_uri('/')
+        url = request.build_absolute_uri(reverse('reporte_respaldo', args=[id_respaldo]))
+        try:
+            pdf_bytes = _generar_pdf(url, settings.SESSION_COOKIE_NAME,
+                                      request.COOKIES.get(settings.SESSION_COOKIE_NAME), origen)
+        except Exception:
+            messages.error(request, 'No se pudo generar el PDF, inténtalo de nuevo.')
+            return redirect('reporte_respaldo', id_respaldo=id_respaldo)
+        _pdf_cache[clave] = pdf_bytes
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="reporte-respaldo-{id_respaldo}.pdf"'
+    response['Cache-Control'] = 'no-store'
+    return response
+
+@login_requerido
+@nivel_requerido('consultar')
+def reporte_cambio_pieza(request, id_cambio):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT c.fk_equipo, c.fk_nombre_equipo, c.fecha_cambio, c.firma_ti, c.firma_usuario,
+                   c.fecha_creacion, c.fecha_cierre,
+                   ti.nombre, ti.apellido_paterno, ti.apellido_materno, tip.nombre_puesto
+            FROM atencion_cambio_pieza c
+            LEFT JOIN usuarios ti ON ti.id_usuario = c.fk_usuario_ti
+            LEFT JOIN cat_puestos tip ON tip.id_puesto = ti.fk_puesto
+            WHERE c.id_cambio = %s
+        """, [id_cambio])
+        row = cursor.fetchone()
+        if not row:
+            messages.error(request, 'Registro no encontrado.')
+            return redirect('dashboard')
+        if not _puede_ver_servicio_independiente(request, row[0]):
+            messages.error(request, 'No tienes permiso para ver este reporte.')
+            return redirect('dashboard')
+        cursor.execute("""
+            SELECT tipo, cantidad, descripcion, marca, modelo, numero_serie
+            FROM atencion_cambio_pieza_detalle WHERE fk_cambio = %s
+        """, [id_cambio])
+        danadas, nuevas = [], []
+        for t, cant, desc, marca, modelo, serie in cursor.fetchall():
+            item = {'cantidad': cant, 'descripcion': desc, 'marca': marca, 'modelo': modelo, 'numero_serie': serie}
+            (danadas if t == 'DANADA' else nuevas).append(item)
+        cursor.execute("SELECT usuario_asignado FROM cat_equipos WHERE id_equipo = %s", [row[0]])
+        eq = cursor.fetchone()
+        resguardante_puesto = ''
+        id_resguardante = _equipo_usuario_asignado_id(cursor, row[0])
+        if id_resguardante:
+            cursor.execute("""
+                SELECT p.nombre_puesto FROM usuarios u
+                LEFT JOIN cat_puestos p ON p.id_puesto = u.fk_puesto
+                WHERE u.id_usuario = %s
+            """, [id_resguardante])
+            r = cursor.fetchone()
+            resguardante_puesto = r[0] if r and r[0] else ''
+    firma_ti_data = row[3]
+    if isinstance(firma_ti_data, str):
+        firma_ti_data = json_lib.loads(firma_ti_data)
+    firma_ti_trazos = firma_ti_data.get('firma', []) if isinstance(firma_ti_data, dict) else []
+    firma_us_data = row[4]
+    if isinstance(firma_us_data, str):
+        firma_us_data = json_lib.loads(firma_us_data)
+    firma_us_trazos = firma_us_data.get('firma', []) if isinstance(firma_us_data, dict) else []
+    ctx = {
+        'id_cambio': id_cambio, 'nombre_equipo': row[1], 'fecha': row[2] or row[5],
+        'danadas': danadas, 'nuevas': nuevas,
+        'firma_ti_json': json_lib.dumps(firma_ti_trazos),
+        'firma_usuario_json': json_lib.dumps(firma_us_trazos),
+        'tecnico_nombre': ' '.join(p for p in row[7:10] if p),
+        'tecnico_puesto': row[10] or '',
+        'resguardante_nombre': eq[0] if eq else '',
+        'resguardante_puesto': resguardante_puesto,
+        'niveles': _niveles_sesion(request),
+    }
+    return render(request, 'servicios/reporte_cambio_pieza.html', ctx)
+
+@login_requerido
+@nivel_requerido('exportar')
+def reporte_cambio_pieza_pdf(request, id_cambio):
+    import os
+    from django.conf import settings
+    from django.urls import reverse
+    from django.template.loader import get_template
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT fk_equipo FROM atencion_cambio_pieza WHERE id_cambio = %s", [id_cambio])
+        row = cursor.fetchone()
+    if not row or not _puede_ver_servicio_independiente(request, row[0]):
+        messages.error(request, 'No tienes permiso para descargar este reporte.')
+        return redirect('dashboard')
+    mtime = os.path.getmtime(get_template('servicios/reporte_cambio_pieza.html').origin.name)
+    clave = ('cambio_pieza', str(id_cambio), mtime)
+    pdf_bytes = _pdf_cache.get(clave)
+    if pdf_bytes is None:
+        origen = request.build_absolute_uri('/')
+        url = request.build_absolute_uri(reverse('reporte_cambio_pieza', args=[id_cambio]))
+        try:
+            pdf_bytes = _generar_pdf(url, settings.SESSION_COOKIE_NAME,
+                                      request.COOKIES.get(settings.SESSION_COOKIE_NAME), origen)
+        except Exception:
+            messages.error(request, 'No se pudo generar el PDF, inténtalo de nuevo.')
+            return redirect('reporte_cambio_pieza', id_cambio=id_cambio)
+        _pdf_cache[clave] = pdf_bytes
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="reporte-cambio-pieza-{id_cambio}.pdf"'
+    response['Cache-Control'] = 'no-store'
     return response
 
 @login_requerido
@@ -1195,7 +2391,7 @@ def usuarios_lista(request):
             'apellido': request.session.get('usuario_paterno', ''),
             'rol':      request.session.get('usuario_rol', 'Usuario'),
             'usuario_area': request.session.get('usuario_area', ''),
-            'stats': {'por_rol': []}, 'usuarios': [], 'roles': [],
+            'stats': {'por_rol': []}, 'usuarios': [], 'roles': [], 'puestos': [],
         })
     with connection.cursor() as cursor:
         cursor.execute("""
@@ -1218,14 +2414,18 @@ def usuarios_lista(request):
             SELECT u.id_usuario, u.username, u.password, u.email,
                    u.nombre, u.apellido_paterno, u.apellido_materno,
                    u.telefono, u.estatus, u.fecha_creacion,
-                   u.fecha_modificacion, u.fk_rol, r.descripcion
+                   u.fecha_modificacion, u.fk_rol, r.descripcion,
+                   u.fk_puesto, p.nombre_puesto
             FROM usuarios u
             LEFT JOIN cat_roles r ON u.fk_rol = r.id_rol
+            LEFT JOIN cat_puestos p ON u.fk_puesto = p.id_puesto
             ORDER BY u.fecha_creacion DESC
         """)
         usuarios = cursor.fetchall()
         cursor.execute("SELECT id_rol, descripcion FROM cat_roles ORDER BY descripcion")
         roles = [{'id_rol': r[0], 'descripcion': r[1]} for r in cursor.fetchall()]
+        cursor.execute("SELECT id_puesto, nombre_puesto FROM cat_puestos WHERE estatus = 'ACT' ORDER BY nombre_puesto")
+        puestos = [{'id_puesto': r[0], 'nombre_puesto': r[1]} for r in cursor.fetchall()]
     context = {
         'username': request.session.get('usuario_username', ''),
         'nombre':   request.session.get('usuario_nombre', ''),
@@ -1240,6 +2440,7 @@ def usuarios_lista(request):
         },
         'usuarios': usuarios,
         'roles':    roles,
+        'puestos':  puestos,
     }
     return render(request, 'usuarios/lista.html', context)
 
@@ -1259,6 +2460,7 @@ def usuario_guardar(request):
     telefono         = request.POST.get('telefono', '').strip() or None
     estatus          = request.POST.get('estatus', 'ACT')
     fk_rol           = request.POST.get('fk_rol', '').strip() or None
+    fk_puesto        = request.POST.get('fk_puesto', '').strip() or None
     area             = request.POST.get('area', '').strip() or None
     if not id_usuario or len(id_usuario) != 5:
         messages.error(request, 'El ID Usuario es obligatorio y debe tener exactamente 5 caracteres.')
@@ -1275,12 +2477,12 @@ def usuario_guardar(request):
             INSERT INTO usuarios (
                 id_usuario, username, password, email,
                 nombre, apellido_paterno, apellido_materno,
-                telefono, estatus, fecha_creacion, fk_rol, area
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                telefono, estatus, fecha_creacion, fk_rol, area, fk_puesto
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, [
             id_usuario, username, password, email,
             nombre, apellido_paterno, apellido_materno,
-            telefono, estatus, now, fk_rol, area,
+            telefono, estatus, now, fk_rol, area, fk_puesto,
         ])
     messages.success(request, f'Usuario {nombre} {apellido_paterno} dado de alta correctamente (ID: {id_usuario}).')
     return redirect('usuarios_lista')
@@ -1293,7 +2495,7 @@ def usuario_datos(request, id_usuario):
         cursor.execute("""
             SELECT id_usuario, username, email,
                    nombre, apellido_paterno, apellido_materno,
-                   telefono, estatus, fk_rol, password, area
+                   telefono, estatus, fk_rol, password, area, fk_puesto
             FROM usuarios WHERE id_usuario = %s
         """, [id_usuario])
         row = cursor.fetchone()
@@ -1301,7 +2503,7 @@ def usuario_datos(request, id_usuario):
         return JsonResponse({'error': 'No encontrado'}, status=404)
     cols = ['id_usuario','username','email',
             'nombre','apellido_paterno','apellido_materno',
-            'telefono','estatus','fk_rol','password','area']
+            'telefono','estatus','fk_rol','password','area','fk_puesto']
     data = {k: (v if v is not None else '') for k, v in zip(cols, row)}
     return JsonResponse(data)
 
@@ -1320,6 +2522,7 @@ def usuario_actualizar(request, id_usuario):
     telefono         = request.POST.get('telefono', '').strip() or None
     estatus          = request.POST.get('estatus', 'ACT')
     fk_rol           = request.POST.get('fk_rol', '').strip() or None
+    fk_puesto        = request.POST.get('fk_puesto', '').strip() or None
     area             = request.POST.get('area', '').strip() or None
     now              = datetime.now()
     with connection.cursor() as cursor:
@@ -1328,21 +2531,21 @@ def usuario_actualizar(request, id_usuario):
                 UPDATE usuarios SET
                     username=%s, password=%s, email=%s,
                     nombre=%s, apellido_paterno=%s, apellido_materno=%s,
-                    telefono=%s, estatus=%s, fk_rol=%s, area=%s,
+                    telefono=%s, estatus=%s, fk_rol=%s, area=%s, fk_puesto=%s,
                     fecha_modificacion=%s
                 WHERE id_usuario = %s
             """, [username, password, email, nombre, apellido_paterno,
-                  apellido_materno, telefono, estatus, fk_rol, area, now, id_usuario])
+                  apellido_materno, telefono, estatus, fk_rol, area, fk_puesto, now, id_usuario])
         else:
             cursor.execute("""
                 UPDATE usuarios SET
                     username=%s, email=%s,
                     nombre=%s, apellido_paterno=%s, apellido_materno=%s,
-                    telefono=%s, estatus=%s, fk_rol=%s, area=%s,
+                    telefono=%s, estatus=%s, fk_rol=%s, area=%s, fk_puesto=%s,
                     fecha_modificacion=%s
                 WHERE id_usuario = %s
             """, [username, email, nombre, apellido_paterno,
-                  apellido_materno, telefono, estatus, fk_rol, area, now, id_usuario])
+                  apellido_materno, telefono, estatus, fk_rol, area, fk_puesto, now, id_usuario])
     messages.success(request, f'Usuario {nombre} {apellido_paterno} actualizado correctamente.')
     return redirect('usuarios_lista')
 
@@ -1525,3 +2728,66 @@ def rol_actualizar(request, id_rol):
         """, [descripcion, estatus, id_permiso, id_rol])
     messages.success(request, f'Rol "{descripcion}" actualizado correctamente.')
     return redirect('configuracion')
+
+# --- Puestos (niveles de empresa que se imprimen en los reportes) — solo T.I ---
+
+@login_requerido
+@rol_requerido('ti1')
+def puestos_lista(request):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT id_puesto, nombre_puesto, estatus, fecha_creacion
+            FROM cat_puestos ORDER BY nombre_puesto
+        """)
+        puestos = [{'id_puesto': r[0], 'nombre_puesto': r[1], 'estatus': r[2], 'fecha_creacion': r[3]}
+                   for r in cursor.fetchall()]
+    ctx = {
+        'puestos': puestos,
+        'rol_id':   request.session.get('usuario_rol_id', ''),
+        'username': request.session.get('usuario_username', ''),
+        'nombre':   request.session.get('usuario_nombre', ''),
+        'apellido': request.session.get('usuario_paterno', ''),
+        'usuario_area': request.session.get('usuario_area', ''),
+    }
+    return render(request, 'configuracion/puestos.html', ctx)
+
+@login_requerido
+@rol_requerido('ti1')
+def puesto_guardar(request):
+    if request.method != 'POST':
+        return redirect('puestos_lista')
+    nombre_puesto = request.POST.get('nombre_puesto', '').strip()
+    if not nombre_puesto:
+        messages.error(request, 'El nombre del puesto es obligatorio.')
+        return redirect('puestos_lista')
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM cat_puestos WHERE UPPER(nombre_puesto) = UPPER(%s)", [nombre_puesto])
+        if cursor.fetchone():
+            messages.error(request, f'Ya existe un puesto llamado "{nombre_puesto}".')
+            return redirect('puestos_lista')
+        cursor.execute("INSERT INTO cat_puestos (nombre_puesto) VALUES (%s)", [nombre_puesto])
+    messages.success(request, f'Puesto "{nombre_puesto}" creado correctamente.')
+    return redirect('puestos_lista')
+
+@login_requerido
+@rol_requerido('ti1')
+def puesto_actualizar(request, id_puesto):
+    if request.method != 'POST':
+        return redirect('puestos_lista')
+    nombre_puesto = request.POST.get('nombre_puesto', '').strip()
+    estatus = request.POST.get('estatus', 'ACT')
+    if not nombre_puesto:
+        messages.error(request, 'El nombre del puesto es obligatorio.')
+        return redirect('puestos_lista')
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM cat_puestos WHERE UPPER(nombre_puesto) = UPPER(%s) AND id_puesto != %s",
+                       [nombre_puesto, id_puesto])
+        if cursor.fetchone():
+            messages.error(request, f'Ya existe un puesto llamado "{nombre_puesto}".')
+            return redirect('puestos_lista')
+        cursor.execute("""
+            UPDATE cat_puestos SET nombre_puesto=%s, estatus=%s, fecha_modificacion=%s
+            WHERE id_puesto=%s
+        """, [nombre_puesto, estatus, datetime.now(), id_puesto])
+    messages.success(request, f'Puesto "{nombre_puesto}" actualizado correctamente.')
+    return redirect('puestos_lista')

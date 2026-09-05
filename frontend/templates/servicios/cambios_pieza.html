@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block titulo %}Cambios de Pieza{% endblock %}
+{% block encabezado %}Cambios de Pieza{% endblock %}
+
+{% block extra_css %}
+<style>
+.modal-consultar .fila-pieza input {opacity:.6;pointer-events:none}
+.modal-consultar .btn-mini-add,.modal-consultar .btn-quitar-pieza,.modal-consultar .firma-card,.modal-consultar .btn-save {display:none!important}
+</style>
+{% endblock %}
+
+{% block sin_acceso %}
+  {% if not niveles.consultar %}
+  <div class="aviso-sin-acceso">
+    <div class="fc-icon"><svg class="icon icon-xl" aria-hidden="true"><use href="#ic-lock"/></svg></div>
+    <div class="fc-title">No tienes acceso a este módulo</div>
+    <p class="fc-hint">
+      Tu nivel de acceso actual no incluye el permiso de <strong>consulta</strong> para esta pantalla.
+      Solicítalo al administrador del sistema desde Configuración &rsaquo; Niveles.
+    </p>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% if niveles.consultar %}
+
+      <div class="toolbar-top"><button type="button" class="btn-nuevo" onclick="abrirNuevo()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Nuevo Cambio de Pieza</button></div>
+      <div class="tbl-wrap tbl-cards">
+  <div class="tbl-scroll">
+    <table>
+          <thead><tr><th>Equipo</th><th>Origen</th><th>Técnico</th><th class="tc">Estatus</th><th>Fecha</th><th class="tc">Acciones</th></tr></thead>
+          <tbody>
+            {% for r in registros %}
+            <tr>
+              <td class="cell-head" data-l="Equipo">{{ r.equipo|default:"—" }}</td>
+              <td class="cell-title" data-l="Origen">{% if r.fk_ticket %}<span class="origen-badge">Ticket #{{ r.fk_ticket }}</span>{% else %}<span class="origen-badge">Independiente</span>{% endif %}</td>
+              <td data-l="Técnico">{{ r.tecnico|default:"—" }}</td>
+              <td class="tc cell-status" data-l="Estatus">
+                {% if r.estatus == 'ABIERTO' %}<span class="sbadge sb-abierto">Pendiente de refacción</span>
+                {% elif r.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
+                {% elif r.estatus == 'PTI' %}<span class="sbadge sb-proceso">Falta firma usuario</span>
+                {% else %}<span class="sbadge sb-proceso">En proceso</span>{% endif %}
+              </td>
+              <td class="txt-muted" data-l="Fecha">{{ r.fecha|date:"d/m/Y" }}</td>
+              <td class="tc cell-actions" data-l="Acciones">
+                {% if r.estatus == 'ABIERTO' %}<button type="button" class="btn-atender" onclick="abrirCompletar('{{ r.id }}')">Completar</button>
+                {% elif r.estatus == 'PTI' %}<button type="button" class="btn-atender" onclick="abrirConsultarCambio('{{ r.id }}')">Consultar</button>
+                {% elif r.estatus == 'FIN' %}<a href="{% url 'reporte_cambio_pieza' r.id %}" target="_blank" class="btn-atender">Ver</a>
+                {% else %}<span class="txt-muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6"><div class="empty-state"><div class="empty-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-cpu"/></svg></div><div class="empty-txt">No hay cambios de pieza registrados todavía.</div></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+  </div>
+      </div>
+{% endif %}
+{% endblock %}
+
+{% block fuera_layout %}
+<div class="modal-overlay" id="modalNuevo" onclick="if(event.target===this) cerrarNuevo()">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>Nuevo Cambio de Pieza</h2><button class="modal-close" onclick="cerrarNuevo()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
+    <form id="formNuevoCP" method="POST" action="{% url 'servicio_cambio_pieza_guardar' %}" onsubmit="return prepararEnvioN(this)">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="val-alert" id="valAlertN"></div>
+        <div class="m-section">
+          <div class="m-section-title">Equipo y fecha</div>
+        <div class="form-grid cols-3">
+          <div class="form-field campo-ancho">
+            <label>Equipo <span class="req">*</span></label>
+            <div class="csel" id="cselEquipoN">
+              <div class="csel-trigger" onclick="toggleCsel('cselEquipoN')"><span class="csel-val csel-placeholder">— Selecciona un equipo —</span><span class="csel-arrow"></span></div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="" data-nombre="">— Selecciona un equipo —</div>
+                {% for e in equipos %}
+                <div class="csel-option" data-value="{{ e.id_equipo }}" data-nombre="{{ e.nombre_equipo }}">{{ e.nombre_equipo }}</div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="fk_equipo" id="fEquipoN"><input type="hidden" name="fk_nombre_equipo" id="fNombreEquipoN">
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Fecha del cambio <span class="req">*</span></label>
+            <input type="date" name="fecha_cambio" id="fFechaN">
+          </div>
+        </div>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Accesorios dañados (se retiran)</div>
+          <div class="piezas-head" aria-hidden="true"><span>Cant.</span><span>Descripción</span><span>Marca</span><span>Modelo</span><span>N° de Serie</span><span></span></div>
+          <div id="listaDanadasN" class="piezas"></div>
+          <button type="button" class="btn-mini-add" onclick="agregarFilaPiezaN('listaDanadasN')"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Agregar pieza</button>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Accesorios nuevos (se instalan)</div>
+          <div class="piezas-head" aria-hidden="true"><span>Cant.</span><span>Descripción</span><span>Marca</span><span>Modelo</span><span>N° de Serie</span><span></span></div>
+          <div id="listaNuevasN" class="piezas"></div>
+          <button type="button" class="btn-mini-add" onclick="agregarFilaPiezaN('listaNuevasN')"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Agregar pieza</button>
+        </div>
+
+        <input type="hidden" name="piezas_danadas_json" id="danadasJsonN">
+        <input type="hidden" name="piezas_nuevas_json" id="nuevasJsonN">
+        <input type="hidden" name="firma_ti_json" id="firmaJsonN">
+        <div class="m-section">
+          <div class="m-section-title">Firma del técnico</div>
+          <div class="firma-card">
+            <div class="bloque-titulo">Tu firma <span class="req">*</span></div>
+            <div class="firma-wrap" id="firmaWrapN"><canvas id="canvasFirmaN"></canvas></div>
+            <p class="firma-nota">Traza tu firma dentro del recuadro con el ratón o el dedo. Se guarda junto con el reporte.</p>
+            <button type="button" class="btn-limpiar-firma" onclick="limpiarFirmaN()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-trash"/></svg> Limpiar firma</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" onclick="cerrarNuevo()">Cancelar</button>
+        <button type="submit" class="btn-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalRef" onclick="if(event.target===this) cerrarCompletar()">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>Completar Cambio de Pieza</h2><button class="modal-close" onclick="cerrarCompletar()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
+    <form id="formCompletar" method="POST" onsubmit="return prepararEnvioRef(this)">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="val-alert" id="valAlertRef"></div>
+        <div id="refInfo" class="ficha"></div>
+
+        <div class="m-section">
+          <div class="m-section-title">Accesorios dañados (se retiran)</div>
+          <div class="piezas-head" aria-hidden="true"><span>Cant.</span><span>Descripción</span><span>Marca</span><span>Modelo</span><span>N° de Serie</span><span></span></div>
+          <div id="refListaDanadas" class="piezas"></div>
+          <button type="button" class="btn-mini-add" onclick="agregarFilaPiezaRef('refListaDanadas')"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Agregar pieza</button>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Piezas nuevas instaladas</div>
+          <div class="piezas-head" aria-hidden="true"><span>Cant.</span><span>Descripción</span><span>Marca</span><span>Modelo</span><span>N° de Serie</span><span></span></div>
+          <div id="refListaNuevas" class="piezas"></div>
+          <button type="button" class="btn-mini-add" onclick="agregarFilaPiezaRef('refListaNuevas')"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Agregar pieza</button>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Firma del técnico</div>
+          <div class="firma-card">
+            <div class="bloque-titulo">Tu firma <span class="txt-opcional">opcional — puedes firmar después</span></div>
+            <div class="firma-wrap" id="firmaWrapRef"><canvas id="canvasFirmaRef"></canvas></div>
+            <p class="firma-nota">Traza tu firma dentro del recuadro con el ratón o el dedo. Se guarda junto con el reporte.</p>
+            <button type="button" class="btn-limpiar-firma" onclick="limpiarFirmaRef()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-trash"/></svg> Limpiar firma</button>
+          </div>
+        </div>
+        <input type="hidden" name="piezas_danadas_json" id="danadasJsonRef">
+        <input type="hidden" name="piezas_nuevas_json" id="nuevasJsonRef">
+        <input type="hidden" name="firma_ti_json" id="firmaJsonRef">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" onclick="cerrarCompletar()">Cancelar</button>
+        <button type="submit" class="btn-save">Completar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+  // ----- csel (equipo) del modal "Nuevo Cambio de Pieza" -----
+  document.getElementById('cselEquipoN').querySelectorAll('.csel-option').forEach(opt=>{
+    opt.addEventListener('click', ()=>{
+      const csel = document.getElementById('cselEquipoN');
+      csel.querySelector('.csel-val').textContent = opt.textContent;
+      csel.querySelector('.csel-val').classList.toggle('csel-placeholder', !opt.dataset.value);
+      document.getElementById('fEquipoN').value = opt.dataset.value;
+      document.getElementById('fNombreEquipoN').value = opt.dataset.nombre || '';
+      csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+      opt.classList.add('selected');
+      csel.classList.remove('open');
+    });
+  });
+
+  // ----- piezas dinámicas + firma del modal "Nuevo Cambio de Pieza" -----
+  function agregarFilaPiezaN(contenedorId){
+    const cont = document.getElementById(contenedorId);
+    const fila = document.createElement('div');
+    fila.className = 'fila-pieza';
+    fila.innerHTML = `
+      <input type="number" min="1" placeholder="Cant." class="p-cantidad" aria-label="Cantidad" value="1">
+      <input type="text" placeholder="Descripción" class="p-descripcion" aria-label="Descripción">
+      <input type="text" placeholder="Marca" class="p-marca" aria-label="Marca">
+      <input type="text" placeholder="Modelo" class="p-modelo" aria-label="Modelo">
+      <input type="text" placeholder="N° de Serie" class="p-serie" aria-label="Número de serie">
+      <button type="button" class="btn-quitar-pieza" onclick="this.closest('.fila-pieza').remove()" aria-label="Quitar pieza" title="Quitar pieza"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>`;
+    cont.appendChild(fila);
+  }
+  function leerPiezasN(contenedorId){
+    return Array.from(document.querySelectorAll(`#${contenedorId} .fila-pieza`)).map(fila => ({
+      cantidad: parseInt(fila.querySelector('.p-cantidad').value,10) || 1,
+      descripcion: fila.querySelector('.p-descripcion').value.trim(),
+      marca: fila.querySelector('.p-marca').value.trim(),
+      modelo: fila.querySelector('.p-modelo').value.trim(),
+      numero_serie: fila.querySelector('.p-serie').value.trim(),
+    })).filter(p=>p.descripcion);
+  }
+  let trazosN = [], dibujandoN = false;
+  function iniciarCanvasN(){
+    const canvas = document.getElementById('canvasFirmaN');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    canvas.onpointerdown = e=>{
+      dibujandoN = true;
+      const r = canvas.getBoundingClientRect();
+      trazosN.push([{x:e.clientX-r.left, y:e.clientY-r.top}]);
+      ctx.beginPath(); ctx.moveTo(e.clientX-r.left, e.clientY-r.top);
+      document.getElementById('firmaWrapN').classList.add('firmado');
+    };
+    canvas.onpointermove = e=>{
+      if(!dibujandoN) return;
+      const r = canvas.getBoundingClientRect();
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      trazosN[trazosN.length-1].push({x,y}); ctx.lineTo(x,y); ctx.stroke();
+    };
+    if (!canvas.dataset.evtSuelta) {
+      canvas.dataset.evtSuelta = '1';
+      window.addEventListener('pointerup', ()=>{ dibujandoN=false; });
+    }
+  }
+  window.limpiarFirmaN = function(){
+    trazosN = [];
+    const canvas = document.getElementById('canvasFirmaN');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('firmaWrapN').classList.remove('firmado');
+  };
+
+  function abrirNuevo(){
+    limpiarFirmaN();
+    resetCsel('cselEquipoN', '— Selecciona un equipo —');
+    document.getElementById('listaDanadasN').innerHTML = '';
+    document.getElementById('listaNuevasN').innerHTML = '';
+    document.getElementById('fFechaN').value = new Date().toISOString().slice(0,10);
+    document.getElementById('valAlertN').classList.remove('show');
+    agregarFilaPiezaN('listaDanadasN');
+    agregarFilaPiezaN('listaNuevasN');
+    document.getElementById('modalNuevo').classList.add('open');
+    setTimeout(iniciarCanvasN, 60);
+  }
+  function cerrarNuevo(){ document.getElementById('modalNuevo').classList.remove('open'); }
+
+  // envío real de formulario (navegación completa): el mensaje de éxito/error
+  // de Django se ve en la página siguiente sin que un fetch+reload se lo coma.
+  function prepararEnvioN(form){
+    const alertBox = document.getElementById('valAlertN');
+    const danadas = leerPiezasN('listaDanadasN');
+    const nuevas = leerPiezasN('listaNuevasN');
+    const fecha = document.getElementById('fFechaN').value;
+    if(!fecha || trazosN.length === 0 || (danadas.length === 0 && nuevas.length === 0)){
+      alertBox.innerHTML = '<svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg> La fecha, tu firma y al menos una pieza son obligatorias.';
+      alertBox.classList.add('show');
+      return false;
+    }
+    document.getElementById('danadasJsonN').value = JSON.stringify(danadas);
+    document.getElementById('nuevasJsonN').value = JSON.stringify(nuevas);
+    document.getElementById('firmaJsonN').value = JSON.stringify(trazosN);
+    return true;
+  }
+
+  let refIdCambio = null, trazosRef = [], dibujandoRef = false;
+
+  function agregarFilaPiezaRef(contenedorId, valores){
+    valores = valores || {};
+    const cont = document.getElementById(contenedorId);
+    const fila = document.createElement('div');
+    fila.className = 'fila-pieza';
+    fila.innerHTML = `
+      <input type="number" min="1" placeholder="Cant." class="p-cantidad" aria-label="Cantidad" value="${valores.cantidad || 1}">
+      <input type="text" placeholder="Descripción" class="p-descripcion" aria-label="Descripción" value="${valores.descripcion || ''}">
+      <input type="text" placeholder="Marca" class="p-marca" aria-label="Marca" value="${valores.marca || ''}">
+      <input type="text" placeholder="Modelo" class="p-modelo" aria-label="Modelo" value="${valores.modelo || ''}">
+      <input type="text" placeholder="N° de Serie" class="p-serie" aria-label="Número de serie" value="${valores.numero_serie || ''}">
+      <button type="button" class="btn-quitar-pieza" onclick="this.closest('.fila-pieza').remove()" aria-label="Quitar pieza" title="Quitar pieza"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>`;
+    cont.appendChild(fila);
+  }
+  function leerPiezasRef(contenedorId){
+    return Array.from(document.querySelectorAll(`#${contenedorId} .fila-pieza`)).map(fila => ({
+      cantidad: parseInt(fila.querySelector('.p-cantidad').value,10) || 1,
+      descripcion: fila.querySelector('.p-descripcion').value.trim(),
+      marca: fila.querySelector('.p-marca').value.trim(),
+      modelo: fila.querySelector('.p-modelo').value.trim(),
+      numero_serie: fila.querySelector('.p-serie').value.trim(),
+    })).filter(p=>p.descripcion);
+  }
+
+  function abrirCompletar(idCambio){
+    refIdCambio = idCambio; trazosRef = [];
+    document.getElementById('modalRef').classList.remove('modal-consultar');
+    document.querySelector('#modalRef .modal-header h2').textContent = 'Completar Cambio de Pieza';
+    document.querySelector('#modalRef .btn-cancel').textContent = 'Cancelar';
+    document.getElementById('formCompletar').action = `/refaccionamientos/completar/${idCambio}/`;
+    document.getElementById('refListaDanadas').innerHTML = '';
+    document.getElementById('refListaNuevas').innerHTML = '';
+    document.getElementById('valAlertRef').classList.remove('show');
+    document.getElementById('refInfo').innerHTML = 'Cargando…';
+    document.getElementById('modalRef').classList.add('open');
+    fetch(`/refaccionamientos/datos/${idCambio}/`).then(r=>r.ok?r.json():null).then(d=>{
+      if(!d) return;
+      document.getElementById('refInfo').innerHTML = `<div class="info-readonly"><b>Equipo</b>${d.equipo || '—'}</div>`;
+      if(d.danadas && d.danadas.length){
+        d.danadas.forEach(p=>agregarFilaPiezaRef('refListaDanadas', p));
+      } else {
+        agregarFilaPiezaRef('refListaDanadas');
+      }
+      if(d.nuevas && d.nuevas.length){
+        d.nuevas.forEach(p=>agregarFilaPiezaRef('refListaNuevas', p));
+      } else {
+        agregarFilaPiezaRef('refListaNuevas');
+      }
+      setTimeout(iniciarCanvasRef, 50);
+    });
+  }
+  function abrirConsultarCambio(idCambio){
+    document.getElementById('modalRef').classList.add('modal-consultar');
+    document.querySelector('#modalRef .modal-header h2').innerHTML = 'Cambio de Pieza <span class="modal-consultar-badge"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-eye"/></svg> SOLO LECTURA</span>';
+    document.querySelector('#modalRef .btn-cancel').textContent = 'Cerrar';
+    document.getElementById('refListaDanadas').innerHTML = '';
+    document.getElementById('refListaNuevas').innerHTML = '';
+    document.getElementById('valAlertRef').classList.remove('show');
+    document.getElementById('refInfo').innerHTML = 'Cargando…';
+    document.getElementById('modalRef').classList.add('open');
+    fetch(`/refaccionamientos/datos/${idCambio}/`).then(r=>r.ok?r.json():null).then(d=>{
+      if(!d) return;
+      document.getElementById('refInfo').innerHTML = `<div class="info-readonly"><b>Equipo</b>${d.equipo || '—'}</div>`;
+      (d.danadas || []).forEach(p=>agregarFilaPiezaRef('refListaDanadas', p));
+      (d.nuevas || []).forEach(p=>agregarFilaPiezaRef('refListaNuevas', p));
+    });
+  }
+  function cerrarCompletar(){
+    document.getElementById('modalRef').classList.remove('open');
+    document.getElementById('modalRef').classList.remove('modal-consultar');
+  }
+
+  function iniciarCanvasRef(){
+    const canvas = document.getElementById('canvasFirmaRef');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    canvas.onpointerdown = e=>{
+      dibujandoRef = true;
+      const r = canvas.getBoundingClientRect();
+      trazosRef.push([{x:e.clientX-r.left, y:e.clientY-r.top}]);
+      ctx.beginPath(); ctx.moveTo(e.clientX-r.left, e.clientY-r.top);
+      document.getElementById('firmaWrapRef').classList.add('firmado');
+    };
+    canvas.onpointermove = e=>{
+      if(!dibujandoRef) return;
+      const r = canvas.getBoundingClientRect();
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      trazosRef[trazosRef.length-1].push({x,y}); ctx.lineTo(x,y); ctx.stroke();
+    };
+    if (!canvas.dataset.evtSuelta) {
+      canvas.dataset.evtSuelta = '1';
+      window.addEventListener('pointerup', ()=>{ dibujandoRef=false; });
+    }
+  }
+  window.limpiarFirmaRef = function(){
+    trazosRef = [];
+    const canvas = document.getElementById('canvasFirmaRef');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('firmaWrapRef').classList.remove('firmado');
+  };
+
+  function prepararEnvioRef(form){
+    const alertBox = document.getElementById('valAlertRef');
+    const danadas = leerPiezasRef('refListaDanadas');
+    const nuevas = leerPiezasRef('refListaNuevas');
+    if(danadas.length === 0 && nuevas.length === 0){
+      alertBox.innerHTML = '<svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg> Agrega al menos una pieza (dañada o nueva) para guardar.';
+      alertBox.classList.add('show');
+      return false;
+    }
+    alertBox.classList.remove('show');
+    document.getElementById('danadasJsonRef').value = JSON.stringify(danadas);
+    document.getElementById('nuevasJsonRef').value = JSON.stringify(nuevas);
+    document.getElementById('firmaJsonRef').value = trazosRef.length > 0 ? JSON.stringify(trazosRef) : '';
+    return true;
+  }
+</script>
+{% endblock %}

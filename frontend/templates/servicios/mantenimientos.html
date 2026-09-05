@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block titulo %}Mantenimientos{% endblock %}
+{% block encabezado %}Mantenimientos{% endblock %}
+
+{% block extra_css %}
+<style>
+</style>
+{% endblock %}
+
+{% block sin_acceso %}
+  {% if not niveles.consultar %}
+  <div class="aviso-sin-acceso">
+    <div class="fc-icon"><svg class="icon icon-xl" aria-hidden="true"><use href="#ic-lock"/></svg></div>
+    <div class="fc-title">No tienes acceso a este módulo</div>
+    <p class="fc-hint">
+      Tu nivel de acceso actual no incluye el permiso de <strong>consulta</strong> para esta pantalla.
+      Solicítalo al administrador del sistema desde Configuración &rsaquo; Niveles.
+    </p>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% if niveles.consultar %}
+
+      <div class="toolbar-top"><button type="button" class="btn-nuevo" onclick="abrirNuevo()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Nuevo Mantenimiento</button></div>
+      <div class="tbl-wrap tbl-cards">
+  <div class="tbl-scroll">
+    <table>
+          <thead><tr><th>Equipo</th><th>Descripción</th><th>Técnico</th><th>Origen</th><th class="tc">Estatus</th><th>Fecha</th><th class="tc">Reporte</th></tr></thead>
+          <tbody>
+            {% for r in registros %}
+            <tr>
+              <td class="cell-head" data-l="Equipo">{{ r.equipo|default:"—" }}</td>
+              <td class="cell-title" data-l="Descripción"><div class="tk-desc">{{ r.resumen|default:"—" }}</div></td>
+              <td data-l="Técnico">{{ r.tecnico|default:"—" }}</td>
+              <td data-l="Origen">{% if r.origen == 'ticket' %}<span class="origen-badge">Ticket #{{ r.id }}</span>{% else %}<span class="origen-badge">Independiente</span>{% endif %}</td>
+              <td class="tc cell-status" data-l="Estatus">
+                {% if r.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
+                {% elif r.estatus == 'PTI' %}<span class="sbadge sb-proceso">Falta firma usuario</span>
+                {% else %}<span class="sbadge sb-pendiente">En diagnóstico</span>{% endif %}
+              </td>
+              <td class="txt-muted" data-l="Fecha">{{ r.fecha|date:"d/m/Y" }}</td>
+              <td class="tc cell-actions" data-l="Reporte">
+                {% if r.estatus == 'PTI' %}<button type="button" class="btn-atender" onclick="abrirConsultarMant('{{ r.origen }}','{{ r.id }}')">Consultar</button>
+                {% elif r.estatus == 'FIN' %}
+                  {% if r.origen == 'ticket' %}<a href="{% url 'reporte_mantenimiento' r.id %}" target="_blank" class="btn-atender">Ver</a>
+                  {% else %}<a href="{% url 'reporte_mantenimiento_independiente' r.id %}" target="_blank" class="btn-atender">Ver</a>{% endif %}
+                {% else %}<span class="txt-muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-wrench"/></svg></div><div class="empty-txt">No hay mantenimientos registrados todavía.</div></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+  </div>
+      </div>
+{% endif %}
+{% endblock %}
+
+{% block fuera_layout %}
+<div class="modal-overlay" id="modalNuevo" onclick="if(event.target===this) cerrarNuevo()">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2>Nuevo Mantenimiento</h2><button class="modal-close" onclick="cerrarNuevo()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
+    <form id="formNuevo" method="POST" action="{% url 'servicio_mantenimiento_guardar' %}" onsubmit="return prepararEnvioM(this)">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="val-alert" id="valAlert"></div>
+        <div class="m-section">
+          <div class="m-section-title">Equipo y lugar</div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>Equipo <span class="req">*</span></label>
+              <div class="csel" id="cselEquipo">
+                <div class="csel-trigger" onclick="toggleCsel('cselEquipo')"><span class="csel-val csel-placeholder">— Selecciona un equipo —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="" data-nombre="">— Selecciona un equipo —</div>
+                  {% for e in equipos %}
+                  <div class="csel-option" data-value="{{ e.id_equipo }}" data-nombre="{{ e.nombre_equipo }}">{{ e.nombre_equipo }}</div>
+                  {% endfor %}
+                </div>
+                <input type="hidden" name="fk_equipo" id="fEquipo"><input type="hidden" name="fk_nombre_equipo" id="fNombreEquipo">
+              </div>
+            </div>
+            <div class="form-field">
+              <label>Lugar de Actividad</label>
+              <div class="csel" id="cselLugar">
+                <div class="csel-trigger" onclick="toggleCsel('cselLugar')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="BASE OPERATIVA">BASE OPERATIVA</div>
+                  <div class="csel-option" data-value="PATIO CECSA">PATIO CECSA</div>
+                  <div class="csel-option" data-value="CM">CM</div>
+                </div>
+                <input type="hidden" name="lugar_actividad" id="fLugar">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Trabajo realizado</div>
+          <div class="form-grid">
+            <div class="form-field"><label>Descripción de lo realizado <span class="req">*</span></label><textarea name="descripcion" id="fDescripcion" rows="3" maxlength="500" placeholder="Trabajo ejecutado sobre el equipo"></textarea></div>
+            <div class="form-field"><label>Observaciones</label><textarea name="observaciones" id="fObservaciones" rows="3" maxlength="500"></textarea></div>
+          </div>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Hallazgo pendiente</div>
+          <label class="chk-servicio"><input type="checkbox" id="chkHallazgo" onchange="alternarHallazgo(this.checked)"> ¿Se detectó alguna falla pendiente de reemplazo?</label>
+          <div class="hallazgo-box" id="camposHallazgo" hidden>
+            <div class="form-grid cols-3">
+              <div class="form-field full"><label>Descripción de la pieza <span class="req">*</span></label><input type="text" name="hallazgo_descripcion" id="hDescripcion" maxlength="200" placeholder="Pieza que hay que reemplazar"></div>
+              <div class="form-field"><label>Marca</label><input type="text" name="hallazgo_marca" id="hMarca" maxlength="100"></div>
+              <div class="form-field"><label>Modelo</label><input type="text" name="hallazgo_modelo" id="hModelo" maxlength="100"></div>
+              <div class="form-field"><label>N° de Serie</label><input type="text" name="hallazgo_serie" id="hSerie" maxlength="100"></div>
+            </div>
+          </div>
+          <input type="hidden" name="hallazgo_pieza_pendiente" id="hResumen">
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Firma del técnico</div>
+          <input type="hidden" name="firma_ti_json" id="firmaJsonM">
+          <div class="firma-card">
+            <div class="bloque-titulo">Tu firma <span class="req">*</span></div>
+            <div class="firma-wrap" id="firmaWrapM"><canvas id="canvasFirmaM"></canvas></div>
+            <p class="firma-nota">Traza tu firma dentro del recuadro con el ratón o el dedo. Se guarda junto con el reporte.</p>
+            <button type="button" class="btn-limpiar-firma" onclick="limpiarFirmaM()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-trash"/></svg> Limpiar firma</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" onclick="cerrarNuevo()">Cancelar</button>
+        <button type="submit" class="btn-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalConsultarMant" onclick="if(event.target===this) cerrarConsultarMant()">
+  <div class="modal modal-lg modal-consultar">
+    <div class="modal-header"><h2>Mantenimiento <span class="modal-consultar-badge"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-eye"/></svg> SOLO LECTURA</span></h2><button class="modal-close" onclick="cerrarConsultarMant()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
+    <div class="modal-body">
+      <div id="mantInfo" class="ficha">Cargando…</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" onclick="cerrarConsultarMant()">Cerrar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function abrirConsultarMant(origen, id){
+    document.getElementById('mantInfo').innerHTML = '';
+    // El modal aparece de inmediato con un esqueleto mientras llega el dato:
+    // el clic siempre tiene respuesta visible.
+    abrirModalConDatos('modalConsultarMant',
+      fetch(`/servicios/mantenimiento/consultar/${origen}/${id}/`).then(r=>{
+        if(!r.ok) throw new Error('mantenimiento ' + r.status);
+        return r.json();
+      }), d=>{
+      if(!d) return;
+      let html = `<div class="info-readonly"><b>Equipo</b>${d.equipo || '—'}</div>`;
+      if(d.lugar_actividad) html += `<div class="info-readonly"><b>Lugar de Actividad</b>${d.lugar_actividad}</div>`;
+      if(d.diagnostico) html += `<div class="info-readonly full"><b>Diagnóstico</b>${d.diagnostico}</div>`;
+      if(d.solucion) html += `<div class="info-readonly full"><b>Solución</b>${d.solucion}</div>`;
+      if(d.observacion) html += `<div class="info-readonly full"><b>Observación</b>${d.observacion}</div>`;
+      if(d.descripcion) html += `<div class="info-readonly full"><b>Descripción de lo realizado</b>${d.descripcion}</div>`;
+      if(d.observaciones) html += `<div class="info-readonly full"><b>Observaciones</b>${d.observaciones}</div>`;
+      if(d.hallazgo) html += `<div class="info-readonly full"><b>Hallazgo — falla pendiente de reemplazo</b>${d.hallazgo}</div>`;
+      html += `<div class="info-readonly"><b>Técnico</b>${d.tecnico || '—'}</div>`;
+      document.getElementById('mantInfo').innerHTML = html;
+    });
+  }
+  function cerrarConsultarMant(){ document.getElementById('modalConsultarMant').classList.remove('open'); }
+
+  ['cselEquipo','cselLugar'].forEach(initCsel);
+
+  const CAMPOS_HALLAZGO = ['hDescripcion','hMarca','hModelo','hSerie'];
+
+  let trazosM = [], dibujandoM = false;
+  function iniciarCanvasM(){
+    const canvas = document.getElementById('canvasFirmaM');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    canvas.onpointerdown = e=>{
+      dibujandoM = true;
+      const r = canvas.getBoundingClientRect();
+      trazosM.push([{x:e.clientX-r.left, y:e.clientY-r.top}]);
+      ctx.beginPath(); ctx.moveTo(e.clientX-r.left, e.clientY-r.top);
+      document.getElementById('firmaWrapM').classList.add('firmado');
+    };
+    canvas.onpointermove = e=>{
+      if(!dibujandoM) return;
+      const r = canvas.getBoundingClientRect();
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      trazosM[trazosM.length-1].push({x,y}); ctx.lineTo(x,y); ctx.stroke();
+    };
+    if (!canvas.dataset.evtSuelta) {
+      canvas.dataset.evtSuelta = '1';
+      window.addEventListener('pointerup', ()=>{ dibujandoM=false; });
+    }
+  }
+  window.limpiarFirmaM = function(){
+    trazosM = [];
+    const canvas = document.getElementById('canvasFirmaM');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('firmaWrapM').classList.remove('firmado');
+  };
+
+  function alternarHallazgo(activo){
+    const box = document.getElementById('camposHallazgo');
+    box.hidden = !activo;
+    if(!activo) CAMPOS_HALLAZGO.forEach(id=>document.getElementById(id).value='');
+    else document.getElementById('hDescripcion').focus();
+  }
+
+  function abrirNuevo(){
+    document.getElementById('formNuevo').reset();
+    limpiarFirmaM();
+    resetCsel('cselEquipo', '— Selecciona un equipo —');
+    resetCsel('cselLugar');
+    alternarHallazgo(false);
+    document.getElementById('valAlert').classList.remove('show');
+    document.querySelectorAll('#formNuevo .error').forEach(e=>e.classList.remove('error'));
+    document.getElementById('modalNuevo').classList.add('open');
+    setTimeout(iniciarCanvasM, 60);
+  }
+  function cerrarNuevo(){ document.getElementById('modalNuevo').classList.remove('open'); }
+
+  // envío real de formulario (navegación completa): así el mensaje de éxito o
+  // error de Django se ve en la página siguiente, sin que un fetch+reload se
+  // lo coma al seguir la redirección de forma invisible.
+  function prepararEnvioM(form){
+    const alertBox = document.getElementById('valAlert');
+    const hallazgo = document.getElementById('chkHallazgo').checked;
+    const faltan = [];
+
+    if(!document.getElementById('fEquipo').value) faltan.push('Equipo');
+    if(!document.getElementById('fDescripcion').value.trim()) faltan.push('Descripción de lo realizado');
+    if(hallazgo && !document.getElementById('hDescripcion').value.trim()) faltan.push('Descripción de la pieza');
+    if(trazosM.length === 0) faltan.push('Tu firma');
+
+    if(faltan.length){
+      alertBox.innerHTML = '<div class="val-alert-title"><svg class="icon icon-sm" aria-hidden="true">' +
+        '<use href="#ic-alert"/></svg> Faltan los siguientes campos obligatorios:</div><ul>' +
+        faltan.map(c=>`<li>${c}</li>`).join('') + '</ul>';
+      alertBox.classList.add('show');
+      alertBox.scrollIntoView({block:'nearest', behavior:'smooth'});
+      return false;
+    }
+
+    // El resumen es el texto que se guarda como pieza pendiente: solo se
+    // le anexa la identificacion que el tecnico haya llegado a capturar.
+    let resumen = '';
+    if(hallazgo){
+      const detalle = ['hMarca','hModelo','hSerie']
+        .map(id=>document.getElementById(id).value.trim())
+        .filter(Boolean)
+        .join(' · ');
+      resumen = document.getElementById('hDescripcion').value.trim() + (detalle ? ` (${detalle})` : '');
+    }
+    document.getElementById('hResumen').value = resumen;
+    document.getElementById('firmaJsonM').value = JSON.stringify(trazosM);
+    return true;
+  }
+</script>
+{% endblock %}

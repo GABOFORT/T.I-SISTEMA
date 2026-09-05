@@ -1,0 +1,394 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Formato de Copia de Seguridad — {{ nombre_equipo }}</title>
+  <style>
+    @page { size: letter; margin: 6mm 15mm 12mm 15mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif; color: #000; background: #ccc; margin: 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .hoja { background: #fff; width: 216mm; min-height: 279.4mm; margin: 16px auto; padding: 6mm 15mm 12mm 15mm; box-shadow: 0 0 12px rgba(0,0,0,.3); }
+    .hoja, .hoja * { font-family: Arial, Helvetica, sans-serif !important; font-size: 8pt !important; }
+
+    .toolbar { max-width: 216mm; margin: 0 auto 14px; display: flex; justify-content: center; gap: 14px; padding: 6px 0; }
+    .toolbar button, .toolbar a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 26px; border: none; border-radius: 9px; font-size: .88rem; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .btn-guardar { background: #fff; color: #0070f3; border: 2px solid #0070f3 !important; }
+    .btn-imprimir { background: linear-gradient(135deg, #0ea5ff, #0070f3); color: #fff; }
+    .toolbar .btn-bloqueado { opacity: .45 !important; cursor: not-allowed !important; position: relative; z-index: 50; filter: grayscale(.6); }
+    .toolbar .btn-bloqueado:hover::after { content: 'Sin nivel de acceso'; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1f2937; color: #f87171; font-size: .7rem; font-weight: 700; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,77,109,.4); white-space: nowrap; z-index: 10000; }
+
+    /* ── El formato es una sola rejilla ──
+       Todo el documento vive dentro de esta tabla: asi el navegador repite su
+       <thead> y su <tfoot> en cada hoja impresa cuando el reporte se pasa de
+       una pagina, y el borde exterior queda continuo como en el papel. */
+    table.formato { width: 100%; border-collapse: collapse; }
+    table.formato > thead { display: table-header-group; }
+    table.formato > tfoot { display: table-footer-group; }
+    table.formato > thead > tr > td,
+    table.formato > tbody > tr > td,
+    table.formato > tfoot > tr > td { padding: 0; border: none; }
+
+    /* ── Encabezado ── */
+    table.encabezado { width: 100%; border-collapse: collapse; border: 2.5px solid #000; }
+    table.encabezado td { border: 1px solid #000; padding: 0; vertical-align: middle; }
+    .logo-cell { width: 30%; text-align: center; padding: 6px !important; }
+    .logo-cell img { max-width: 150px; max-height: 52px; }
+    .meta-cell { padding: 0 !important; }
+    .meta-cell table { width: 100%; border-collapse: collapse; }
+    .meta-cell table td { border: none; border-right: 1px solid #000; padding: 4px 8px; text-align: center; }
+    .meta-cell table tr td:last-child { border-right: none; }
+    .titulo-cell { text-align: center; padding: 5px 10px !important; }
+    .titulo-cell .razon { font-weight: 700; color: #1f4e79; font-size: 10pt !important; }
+    .titulo-cell .formato-nombre { font-weight: 700; color: #000; font-size: 9pt !important; margin-top: 3px; }
+
+    /* ── Rejilla de datos ──
+       Las tablas se encadenan con -1px para que sus bordes se fundan y el
+       conjunto se lea como una sola cuadricula, igual que el formato impreso. */
+    .cuerpo-marco { border: 2.5px solid #000; border-top: none; }
+    table.bloque { width: 100%; border-collapse: collapse; margin-top: -1px; }
+    table.bloque:first-child { margin-top: 0; }
+    table.bloque:first-child > tbody > tr:first-child > td { border-top: none; }
+    table.bloque td, table.bloque th { border: 1px solid #000; padding: 2px 6px; vertical-align: middle; }
+
+    /* Banda de seccion: es el separador visual del formato */
+    .banda {
+      background: #1f3864; color: #fff; font-weight: 700;
+      text-align: center; text-transform: uppercase; letter-spacing: .2px;
+      padding: 3px 6px !important;
+    }
+    .lbl { font-weight: 700; }
+    .lbl .ej { font-weight: 400; }
+    .nota { padding: 3px 6px !important; }
+    .nota b { font-weight: 700; }
+    .valor-centro { text-align: center; }
+    .casilla { width: 26px; text-align: center; font-weight: 700; }
+
+    /* Fecha de solicitud en casillas DD / MM / AAAA */
+    .fecha-wrap { text-align: center; padding: 4px 6px !important; }
+    table.fecha-cajas { border-collapse: collapse; margin: 0 auto; }
+    table.fecha-cajas td { border: 1px solid #000; width: 52px; text-align: center; padding: 2px 4px; }
+    table.fecha-cajas td.rotulo { border: none; font-size: 6.5pt !important; padding: 0; }
+
+    /* Cruce de periodicidad */
+    table.periodicidad th { background: #1f3864; color: #fff; font-weight: 700; text-align: center; }
+    table.periodicidad td.per { text-align: center; font-style: italic; }
+    table.periodicidad td.lbl { width: 40%; }
+
+    /* ── Firmas ── */
+    .firmas-caja { text-align: center; padding: 4px 6px 5px !important; }
+    .firmas-caja canvas { display: block; margin: 0 auto; }
+    .firmas-caja .nombre { font-weight: 700; text-decoration: underline; margin-top: 2px; }
+    .firmas-caja .rol { font-weight: 700; }
+
+    /* ── Pie ──
+       Mismo armado que el formato de Cambio y/o Actualizacion de
+       Refaccionamiento: anclado al borde inferior de la hoja, la leyenda de
+       copia en azul y centrada, el texto de certificacion justificado y los
+       sellos debajo alineados a la derecha. */
+    .footer { margin-top: 4px; }
+    .footer .pie-legal { text-align: center; font-size: 7pt !important; line-height: 1.3; margin-bottom: 2px; }
+    .footer .copia { text-align: center; color: #0645AD; font-size: 9pt !important; margin-bottom: 10px; }
+    .footer .cert-row { margin-top: 4px; }
+    .footer .cert-texto { line-height: 1.35; text-align: justify; font-size: 9pt !important; }
+    .footer .cert-img { max-width: 130px; display: block; margin: 8px 0 0 auto; }
+
+    @media print {
+      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .toolbar { display: none; }
+      .hoja { box-shadow: none; margin: 0; width: auto; min-height: 261.4mm; padding: 0; }
+    }
+
+    /* ── Solo pantalla: la hoja conserva su tamaño real y se escala para caber
+       en pantallas chicas, sin deformar el documento. ── */
+    @media screen {
+      body { background: #d7dce3; padding-bottom: 24px; }
+      .toolbar { position: sticky; top: 0; z-index: 60; background: #d7dce3; margin-bottom: 12px; padding: 12px 0; flex-wrap: wrap; }
+      .toolbar button, .toolbar a { min-height: 44px; font-family: 'Segoe UI', system-ui, sans-serif; transition: filter .15s ease-out; }
+      .toolbar button:hover, .toolbar a:hover { filter: brightness(1.06); }
+      .toolbar button:focus-visible, .toolbar a:focus-visible { outline: 2px solid #0070f3; outline-offset: 3px; }
+      .hoja-marco { overflow: hidden; }
+      .hoja { transform-origin: top center; }
+    }
+    @media screen and (max-width: 900px) {
+      .toolbar { padding: 10px 12px; gap: 8px; }
+      .toolbar button, .toolbar a { flex: 1; justify-content: center; padding: 11px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    {% if niveles.exportar %}
+    <a href="{% url 'reporte_respaldo_pdf' id_respaldo %}" class="btn-guardar">💾 Guardar como PDF</a>
+    <button class="btn-imprimir" onclick="window.print()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>Imprimir</button>
+    {% else %}
+    <a class="btn-guardar btn-bloqueado">💾 Guardar como PDF</a>
+    <button type="button" class="btn-imprimir btn-bloqueado"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>Imprimir</button>
+    {% endif %}
+  </div>
+
+  <div class="hoja-marco"><div class="hoja">
+  <table class="formato">
+    <thead>
+      <tr><td>
+        <table class="encabezado">
+          <tr>
+            <td class="logo-cell" rowspan="2"><img src="{% static 'img/CECSA.png' %}" alt="CECSA"></td>
+            <td class="meta-cell">
+              <table><tr>
+                <td><b>Código:</b> F-CECSA-TI-03</td>
+                <td><b>Página:</b> 1 de 1</td>
+                <td><b>Revisión:</b> 04 DICIEMBRE 2024</td>
+              </tr></table>
+            </td>
+          </tr>
+          <tr>
+            <td class="titulo-cell">
+              <div class="razon">CÓMPUTO Y ELECTRÓNICA DE COATZACOALCOS S.A. DE C.V.</div>
+              <div class="formato-nombre">FORMATO DE COPIA DE SEGURIDAD</div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+    </thead>
+
+
+    <tbody>
+      <tr><td>
+        <div class="cuerpo-marco">
+
+        <table class="bloque">
+          <tr>
+            <td class="banda">SOLICITUD DE BACKUP ESPORADICO</td>
+            <td class="casilla">{% if tipo_solicitud == 'ESPORADICO' %}X{% endif %}</td>
+            <td class="banda">SOLICITUD DE POLITICA DE BACKUP PROGRAMADA</td>
+            <td class="casilla">{% if tipo_solicitud == 'PROGRAMADA' %}X{% endif %}</td>
+          </tr>
+        </table>
+
+        <table class="bloque">
+          <tr>
+            <td class="lbl" style="width:30%;text-align:center">FECHA DE SOLICITUD</td>
+            <td class="fecha-wrap">
+              <table class="fecha-cajas">
+                <tr>
+                  <td>{{ fecha|date:"d" }}</td><td>{{ fecha|date:"m" }}</td><td>{{ fecha|date:"Y" }}</td>
+                </tr>
+                <tr>
+                  <td class="rotulo">DD</td><td class="rotulo">MM</td><td class="rotulo">AAAA</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table class="bloque">
+          <tr><td class="banda" colspan="4">SOLICITANTE</td></tr>
+          <tr>
+            <td class="lbl" style="width:30%">Nombres y Apellidos:</td>
+            <td colspan="3">{{ solicitante.nombre|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Cargo:</td>
+            <td style="width:28%">{{ solicitante.cargo|default:"" }}</td>
+            <td class="lbl" style="width:18%">Dependencia:</td>
+            <td>CECSA</td>
+          </tr>
+          <tr>
+            <td class="lbl">Lugar:</td>
+            <td>{{ solicitante.lugar|default:"" }}</td>
+            <td class="lbl">Extensión:</td>
+            <td>{{ solicitante.extension|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Correo Electrónico Corporativo:</td>
+            <td colspan="3">{{ solicitante.correo|default:"" }}</td>
+          </tr>
+        </table>
+
+        <table class="bloque">
+          <tr><td class="banda" colspan="2">INFORMACIÓN A RESPALDAR (BACKUP)</td></tr>
+          <tr>
+            <td class="lbl" style="width:38%">Tipo/Fuente de datos: <span class="ej">(Ej: Carpetas, archivos Word, Excel Power Point, Base de datos SQL, Logs, Exchange, Archivos de sistema)</span></td>
+            <td>{{ tipo_fuente_datos|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Backup de información alojada en unidades compartidas: <span class="ej">Especifique la ruta</span></td>
+            <td>{{ ruta_unidad_compartida|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Indique los <b>archivos</b> a los cuales se les deberá realizar backup: <span class="ej">(liste todos y cada uno de los archivos que requiera sean respaldados)</span></td>
+            <td>{{ archivos_respaldar|default:"" }}</td>
+          </tr>
+        </table>
+
+        <table class="bloque">
+          <tr><td class="banda">DEFINICIÓN DE POLÍTICA DE BACKUP</td></tr>
+          <tr><td class="nota"><b>Nota:</b> Las siguientes casillas deberán ser diligenciadas <b>ÚNICAMENTE</b> en caso que su solicitud corresponda a una política de Backup, esto es copias periódicas de la información.</td></tr>
+        </table>
+
+        <table class="bloque">
+          <tr><td class="banda" colspan="4">INFORMACION DEL SERVIDOR A RESPALDAR</td></tr>
+          <tr>
+            <td class="lbl" style="width:42%;text-align:center">Nombre del Equipo:</td>
+            <td class="valor-centro" style="width:16%">{{ nombre_equipo|default:"" }}</td>
+            <td class="lbl" style="width:22%">Dirección IP del Servidor:</td>
+            <td>{{ ip_servidor|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl" style="text-align:center">Sistema Operativo:</td>
+            <td colspan="3">{{ sistema_operativo|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Tipo de Backup: <span class="ej">(ONLINE, OFFLINE)</span></td>
+            <td colspan="3">{{ tipo_backup|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Observaciones:</td>
+            <td colspan="3">{{ observaciones_politica|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Total GB a respaldar (Tamaño):</td>
+            <td colspan="3">{{ total_gb_respaldar|default:"" }}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Total GB de crecimiento anual probable (Tamaño):</td>
+            <td colspan="3">{{ total_gb_crecimiento|default:"" }}</td>
+          </tr>
+        </table>
+
+        <table class="bloque periodicidad">
+          <tr>
+            <th class="lbl">Detalle</th>
+            <th>Diario</th><th>Semanal</th><th>Mensual</th><th>Anual</th>
+          </tr>
+          <tr>
+            <td class="lbl">Nivel de Backup <span class="ej">(Full, Incremental, Diferencial)</span></td>
+            <td class="per">{% if periodicidad == 'DIARIO' %}{{ nivel_backup }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'SEMANAL' %}{{ nivel_backup }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'MENSUAL' %}{{ nivel_backup }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'ANUAL' %}{{ nivel_backup }}{% endif %}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Agenda <span class="ej">(Ej: Diario: Lunes a Viernes, Mensual: último domingo de cada mes, Semanal: Sábados, Anual: último domingo del año, Eventual: Fecha específica)</span></td>
+            <td class="per">{% if periodicidad == 'DIARIO' %}{{ agenda }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'SEMANAL' %}{{ agenda }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'MENSUAL' %}{{ agenda }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'ANUAL' %}{{ agenda }}{% endif %}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Horario:</td>
+            <td class="per">{% if periodicidad == 'DIARIO' %}{{ horario }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'SEMANAL' %}{{ horario }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'MENSUAL' %}{{ horario }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'ANUAL' %}{{ horario }}{% endif %}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Retención de datos en días:</td>
+            <td class="per">{% if periodicidad == 'DIARIO' %}{{ retencion_dias }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'SEMANAL' %}{{ retencion_dias }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'MENSUAL' %}{{ retencion_dias }}{% endif %}</td>
+            <td class="per">{% if periodicidad == 'ANUAL' %}{{ retencion_dias }}{% endif %}</td>
+          </tr>
+        </table>
+
+        <table class="bloque">
+          <tr><td class="banda">FIRMAS</td></tr>
+          <tr>
+            <td class="firmas-caja">
+              <canvas id="firmaCanvas" width="240" height="34"></canvas>
+              <div class="nombre">{{ solicitante.nombre|default:"&nbsp;"|upper }}</div>
+              <div class="rol">Quien solicita la política de backup</div>
+            </td>
+          </tr>
+        </table>
+
+        </div>
+      </td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div class="pie-legal">
+      Cualquier copia impresa de este documento se considera como COPIA NO CONTROLADA.<br>
+      LOS DATOS PROPORCIONADOS SERÁN TRATADOS DE ACUERDO A LA POLÍTICA DE TRATAMIENTO DE DATOS PERSONALES DEL ICBF Y A LA LEY 1581 DE 2012
+    </div>
+    <div class="copia">Todo documento impreso será un documento como Copia No Controlada.</div>
+    <div class="cert-row">
+      <div class="cert-texto">
+        "CECSA, S.A DE C.V, Sistema de Gestión Integral de Calidad certificado por "INGEDESA" Alcance de Certificación
+        Servicios de inyección de gas a base de moto compresión, telemetría y obra mecánica para el sector de
+        hidrocarburos y Servicios de automatización y control a través de la programación e instrumentación para el
+        sector industrial. Número de certificado 001,002 y 003 INGEDESA en base a ISO 9001:2015, ISO 45001:2018
+        e ISO 14001:2015 Vigencia de Certificación 2027".
+      </div>
+      <img class="cert-img" src="{% static 'img/CERTIFICACIONES.png' %}" alt="Certificaciones">
+    </div>
+  </div>
+  </div></div>
+
+<script>
+  /* Redibuja la firma guardada: los trazos vienen en coordenadas de pixel del
+     lienzo donde se firmó, así que se escalan y centran en este recuadro. */
+  (function () {
+    var trazos = JSON.parse('{{ firma_solicitante_json|escapejs }}');
+    if (!trazos || trazos.length === 0) return;
+    var canvas = document.getElementById('firmaCanvas');
+    var ctx = canvas.getContext('2d');
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    trazos.forEach(function (t) {
+      t.forEach(function (p) {
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      });
+    });
+    var ancho = Math.max(maxX - minX, 1), alto = Math.max(maxY - minY, 1), pad = 6;
+    var escala = Math.min((canvas.width - pad * 2) / ancho, (canvas.height - pad * 2) / alto);
+    var offX = pad + (canvas.width - pad * 2 - ancho * escala) / 2;
+    var offY = pad + (canvas.height - pad * 2 - alto * escala) / 2;
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    trazos.forEach(function (t) {
+      ctx.beginPath();
+      t.forEach(function (p, i) {
+        var x = offX + (p.x - minX) * escala, y = offY + (p.y - minY) * escala;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    });
+  })();
+</script>
+
+<script>
+  /* Ajusta la hoja al ancho disponible para poder revisarla desde el
+     teléfono. No altera el documento: solo lo escala en pantalla. */
+  (function () {
+    var hoja = document.querySelector('.hoja');
+    if (!hoja) return;
+    var marco = hoja.parentNode;
+    function ajustar() {
+      hoja.style.transform = '';
+      marco.style.height = '';
+      var disponible = document.documentElement.clientWidth - 24;
+      var real = hoja.offsetWidth;
+      if (!real) return;
+      var escala = Math.min(1, disponible / real);
+      if (escala < 1) {
+        hoja.style.transform = 'scale(' + escala + ')';
+        marco.style.height = (hoja.offsetHeight * escala) + 'px';
+      }
+    }
+    ajustar();
+    window.addEventListener('resize', ajustar);
+    window.addEventListener('beforeprint', function () {
+      hoja.style.transform = ''; marco.style.height = '';
+    });
+    window.addEventListener('afterprint', ajustar);
+  })();
+</script>
+</body>
+</html>

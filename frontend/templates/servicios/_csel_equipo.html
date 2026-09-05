@@ -1,0 +1,14 @@
+<div class="csel" id="{{ csel_id }}">
+  <div class="csel-trigger" onclick="toggleCsel('{{ csel_id }}')">
+    <span class="csel-val csel-placeholder">— Selecciona un equipo —</span>
+    <span class="csel-arrow"></span>
+  </div>
+  <div class="csel-dropdown">
+    <div class="csel-option placeholder-opt" data-value="" data-nombre="">— Selecciona un equipo —</div>
+    {% for e in equipos %}
+    <div class="csel-option" data-value="{{ e.id_equipo }}" data-nombre="{{ e.nombre_equipo }}">{{ e.nombre_equipo }}</div>
+    {% endfor %}
+  </div>
+  <input type="hidden" name="{{ name_fk }}">
+  <input type="hidden" name="{{ name_nombre }}">
+</div>

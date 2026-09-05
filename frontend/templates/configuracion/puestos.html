@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block titulo %}Puestos{% endblock %}
+{% block encabezado %}Puestos{% endblock %}
+
+{% block extra_css %}
+<style>
+
+</style>
+{% endblock %}
+
+{% block contenido %}
+
+      <div class="cfg-section">
+        <div class="cfg-sec-hdr">
+          <div>
+            <div class="cfg-sec-title">Puestos de la Empresa</div>
+            <div class="cfg-sec-sub">Catálogo de puestos/niveles que se asignan a cada usuario y se imprimen en los reportes (F-CECSA-TI-08, etc.)</div>
+          </div>
+          <button class="btn-nuevo" onclick="abrirPuesto()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Nuevo Puesto</button>
+        </div>
+        <div class="tbl-wrap tbl-cards">
+  <div class="tbl-scroll">
+    <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nombre del Puesto</th>
+                <th>Estatus</th>
+                <th class="tc">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in puestos %}
+              <tr>
+                <td class="id-mono cell-head" data-l="ID">{{ p.id_puesto }}</td>
+                <td class="txt-label" data-l="Nombre del Puesto">{{ p.nombre_puesto }}</td>
+                <td class="cell-status" data-l="Estatus">{% if p.estatus == 'ACT' %}<span class="eb-act">ACTIVO</span>{% else %}<span class="eb-ina">INACTIVO</span>{% endif %}</td>
+                <td class="tc cell-actions" data-l="Acciones">
+                  <div class="actions">
+                    <button class="ab ab-edit" title="Editar"
+                      data-id="{{ p.id_puesto }}"
+                      data-nombre="{{ p.nombre_puesto }}"
+                      data-est="{{ p.estatus }}"
+                      onclick="editarPuestoBtn(this)"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-edit"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4"><div class="empty-state"><div class="empty-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-tag"/></svg></div><div class="empty-txt">
+                Aún no hay puestos registrados.<br>Da de alta el primero con "<svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Nuevo Puesto".
+              </div></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+  </div>
+        </div>
+      </div>
+{% endblock %}
+
+{% block fuera_layout %}
+<div class="modal-overlay" id="ovPuesto" onclick="cerrarFuera(event,'ovPuesto')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="tituloPuesto">Nuevo Puesto</h2>
+      <button class="modal-close" onclick="cerrar('ovPuesto')" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <form id="formPuesto" method="POST" action="{% url 'puesto_guardar' %}" data-crear-url="{% url 'puesto_guardar' %}">
+        {% csrf_token %}
+        <div class="m-field">
+          <label>Nombre del Puesto <span class="req">*</span></label>
+          <input type="text" name="nombre_puesto" id="fNombrePuesto" placeholder="AUXILIAR DE TI" maxlength="100"
+                 oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="m-field" id="campoEstatusPuesto" style="display:none">
+          <label>Estatus <span class="req">*</span></label>
+          <div class="csel" id="cselPuestoEst">
+            <div class="csel-trigger" onclick="toggleCsel('cselPuestoEst')">
+              <span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span>
+            </div>
+            <input type="hidden" name="estatus" id="fEstPuesto">
+            <div class="csel-dropdown">
+              <div class="csel-option" data-val="ACT" onclick="setCsel('cselPuestoEst','ACT')">ACTIVO</div>
+              <div class="csel-option" data-val="INA" onclick="setCsel('cselPuestoEst','INA')">INACTIVO</div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="cerrar('ovPuesto')">Cancelar</button>
+      <button class="btn-save" onclick="guardarPuesto()">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+  initCsel('cselPuestoEst');
+
+  function abrir(id){ document.getElementById(id).classList.add('open'); }
+  function cerrar(id){ document.getElementById(id).classList.remove('open'); }
+  /* Escape, clic fuera, foco y bloqueo del fondo los gestiona app.js
+     para todos los modales: un solo Escape cierra solo el modal activo. */
+  function cerrarFuera(e,id){ if(e.target===document.getElementById(id)) cerrar(id); }
+
+  function abrirPuesto(){
+    document.getElementById('tituloPuesto').textContent = 'Nuevo Puesto';
+    const form = document.getElementById('formPuesto');
+    form.action = form.dataset.crearUrl;
+    document.getElementById('fNombrePuesto').value = '';
+    document.getElementById('fNombrePuesto').classList.remove('error');
+    document.getElementById('campoEstatusPuesto').style.display = 'none';
+    resetCsel('cselPuestoEst');
+    abrir('ovPuesto');
+  }
+  function editarPuestoBtn(btn){
+    const d = btn.dataset;
+    document.getElementById('tituloPuesto').textContent = 'Editar Puesto — ' + d.id;
+    const form = document.getElementById('formPuesto');
+    form.action = `/configuracion/puestos/actualizar/${d.id}/`;
+    document.getElementById('fNombrePuesto').value = d.nombre;
+    document.getElementById('fNombrePuesto').classList.remove('error');
+    document.getElementById('campoEstatusPuesto').style.display = '';
+    setCsel('cselPuestoEst', d.est);
+    abrir('ovPuesto');
+  }
+  function guardarPuesto(){
+    const nombre = document.getElementById('fNombrePuesto').value.trim();
+    let ok = true;
+    document.getElementById('fNombrePuesto').classList.toggle('error', !nombre);
+    if(!nombre) ok = false;
+    const campoEst = document.getElementById('campoEstatusPuesto');
+    if(campoEst.style.display !== 'none'){
+      const est = document.getElementById('fEstPuesto').value;
+      if(!est){ document.getElementById('cselPuestoEst').classList.add('error'); ok = false; }
+    }
+    if(!ok) return;
+    document.querySelectorAll('.modal-overlay.open .btn-save, .modal-overlay.open .btn-guardar').forEach(function(b){ b.classList.add('is-loading'); });
+    document.getElementById('formPuesto').submit();
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block titulo %}Reporte de Actividades{% endblock %}
+{% block encabezado %}Reporte de Actividades{% endblock %}
+
+{% block sin_acceso %}
+  {% if not niveles.consultar %}
+  <div class="aviso-sin-acceso">
+    <div class="fc-icon"><svg class="icon icon-xl" aria-hidden="true"><use href="#ic-lock"/></svg></div>
+    <div class="fc-title">No tienes acceso a este módulo</div>
+    <p class="fc-hint">
+      Tu nivel de acceso actual no incluye el permiso de <strong>consulta</strong> para esta pantalla.
+      Solicítalo al administrador del sistema desde Configuración &rsaquo; Niveles.
+    </p>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% if niveles.consultar %}
+
+      <div class="picker-card">
+        <p>Elige el rango de fechas y se generará el Reporte de Actividades (F-CECSA-TI-05) con todo lo que se realizó en ese periodo — tickets, mantenimientos, respaldos y cambios de pieza.</p>
+        <div class="form-grid">
+          <div class="form-field"><label>Desde <span style="color:var(--danger)">*</span></label><input type="date" id="fDesde"></div>
+          <div class="form-field"><label>Hasta <span style="color:var(--danger)">*</span></label><input type="date" id="fHasta"></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-save" onclick="verReporte()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-file"/></svg> Ver reporte</button>
+        </div>
+        <div class="val-alert" id="valAlert"></div>
+      </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function verReporte(){
+    const desde = document.getElementById('fDesde').value;
+    const hasta = document.getElementById('fHasta').value;
+    const alertBox = document.getElementById('valAlert');
+    if(!desde || !hasta || desde > hasta){
+      alertBox.textContent = 'Selecciona un rango de fechas válido (desde no puede ser después de hasta).';
+      alertBox.classList.add('show');
+      return;
+    }
+    alertBox.classList.remove('show');
+    window.open(`/reporte-actividades/documento/?desde=${desde}&hasta=${hasta}`, '_blank');
+  }
+</script>
+{% endblock %}

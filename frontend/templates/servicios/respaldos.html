@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block titulo %}Respaldos{% endblock %}
+{% block encabezado %}Respaldos{% endblock %}
+
+{% block extra_css %}
+<style>
+.modal-consultar .form-field input,.modal-consultar .form-field textarea {opacity:.6;pointer-events:none}
+.modal-consultar .csel-trigger {opacity:.6;pointer-events:none}
+.modal-consultar .firma-card,.modal-consultar .btn-save {display:none!important}
+.tipo-esp { background: var(--info-soft); color: var(--info); border-color: var(--info-border); }
+.tipo-prog { background: var(--purple-soft); color: var(--accent-purple); border-color: var(--purple-border); }
+input[type=time]::-webkit-calendar-picker-indicator {filter:invert(1);cursor:pointer}
+</style>
+{% endblock %}
+
+{% block sin_acceso %}
+  {% if not niveles.consultar %}
+  <div class="aviso-sin-acceso">
+    <div class="fc-icon"><svg class="icon icon-xl" aria-hidden="true"><use href="#ic-lock"/></svg></div>
+    <div class="fc-title">No tienes acceso a este módulo</div>
+    <p class="fc-hint">
+      Tu nivel de acceso actual no incluye el permiso de <strong>consulta</strong> para esta pantalla.
+      Solicítalo al administrador del sistema desde Configuración &rsaquo; Niveles.
+    </p>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% if niveles.consultar %}
+
+      <div class="toolbar-top"><button type="button" class="btn-nuevo" onclick="abrirNuevo()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Nuevo Respaldo</button></div>
+      <div class="tbl-wrap tbl-cards">
+  <div class="tbl-scroll">
+    <table>
+          <thead><tr><th>Equipo</th><th>Detalle</th><th>Tipo</th><th>Técnico</th><th>Origen</th><th class="tc">Estatus</th><th>Fecha</th><th class="tc">Acciones</th></tr></thead>
+          <tbody>
+            {% for r in registros %}
+            <tr>
+              <td class="cell-head" data-l="Equipo">{{ r.equipo|default:"—" }}</td>
+              <td class="cell-title" data-l="Detalle"><div class="tk-desc">{{ r.resumen }}</div></td>
+              <td data-l="Tipo">{% if r.tipo_solicitud == 'PROGRAMADA' %}<span class="tipo-badge tipo-prog">Programada</span>{% else %}<span class="tipo-badge tipo-esp">Esporádico</span>{% endif %}</td>
+              <td data-l="Técnico">{{ r.tecnico|default:"—" }}</td>
+              <td data-l="Origen">{% if r.fk_ticket %}<span class="origen-badge">Ticket #{{ r.fk_ticket }}</span>{% else %}<span class="origen-badge">Independiente</span>{% endif %}</td>
+              <td class="tc cell-status" data-l="Estatus">
+                {% if r.estatus == 'ABIERTO' %}<span class="sbadge sb-abierto">Pendiente de completar</span>
+                {% elif r.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
+                {% elif r.estatus == 'PTI' %}<span class="sbadge sb-proceso">Falta firma usuario</span>
+                {% else %}<span class="sbadge sb-pendiente">Pendiente</span>{% endif %}
+              </td>
+              <td class="txt-muted" data-l="Fecha">{{ r.fecha|date:"d/m/Y" }}</td>
+              <td class="tc cell-actions" data-l="Acciones">
+                {% if r.estatus == 'ABIERTO' %}<button type="button" class="btn-atender" onclick="abrirCompletar('{{ r.id }}')">Completar</button>
+                {% elif r.estatus == 'PTI' %}<button type="button" class="btn-atender" onclick="abrirConsultarResp('{{ r.id }}')">Consultar</button>
+                {% elif r.estatus == 'FIN' %}<a href="{% url 'reporte_respaldo' r.id %}" target="_blank" class="btn-atender">Ver</a>
+                {% else %}<span class="txt-muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8"><div class="empty-state"><div class="empty-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-drive"/></svg></div><div class="empty-txt">No hay respaldos registrados todavía.</div></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+  </div>
+      </div>
+{% endif %}
+{% endblock %}
+
+{% block fuera_layout %}
+<div class="modal-overlay" id="modalNuevo" onclick="if(event.target===this) cerrarNuevo()">
+  <div class="modal modal-xl">
+    <div class="modal-header"><h2>Nuevo Respaldo</h2><button class="modal-close" onclick="cerrarNuevo()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
+    <form id="formNuevo" method="POST" action="{% url 'servicio_respaldo_guardar' %}" onsubmit="return prepararEnvioR(this)">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="val-alert" id="valAlert">
+          <div class="val-alert-title"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg> Faltan los siguientes campos obligatorios:</div>
+          <ul id="valList"></ul>
+        </div>
+        <div class="m-section">
+          <div class="m-section-title">Solicitud</div>
+        <div class="form-grid cols-3">
+          <div class="form-field">
+            <label>Solicitante <span class="req">*</span></label>
+            <div class="csel" id="cselSolicitante">
+              <div class="csel-trigger" onclick="toggleCsel('cselSolicitante')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                {% for u in usuarios %}
+                <div class="csel-option" data-value="{{ u.id_usuario }}">{{ u.nombre_completo }}{% if u.puesto %} — {{ u.puesto }}{% endif %}</div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="fk_usuario_solicitante" id="fSolicitante">
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Tipo de Solicitud <span class="req">*</span></label>
+            <div class="csel" id="cselTipoSolicitud">
+              <div class="csel-trigger" onclick="toggleCsel('cselTipoSolicitud')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                <div class="csel-option" data-value="ESPORADICO">Backup Esporádico</div>
+                <div class="csel-option" data-value="PROGRAMADA">Política de Backup Programada</div>
+              </div>
+              <input type="hidden" name="tipo_solicitud" id="fTipoSolicitud">
+            </div>
+          </div>
+          <div class="form-field"><label>Tipo/Fuente de Datos</label><input type="text" name="tipo_fuente_datos" id="fTipoFuente" maxlength="300" value="Carpetas, Archivos y Office" readonly></div>
+          <div class="form-field full"><label>Ruta si es unidad compartida <span class="req">*</span></label><input type="text" name="ruta_unidad_compartida" id="fRuta" maxlength="300" placeholder="Ej. \SRV-CECSA\Respaldos\..."></div>
+          <div class="form-field full"><label>Archivos a respaldar <span class="req">*</span></label><textarea name="archivos_respaldar" id="fArchivos" rows="2" maxlength="500"></textarea></div>
+        </div>
+        </div>
+
+        <div id="politicaWrap">
+        <div class="m-section">
+          <div class="m-section-title">Política de backup · equipo</div>
+          <div class="form-grid cols-3">
+            <div class="form-field">
+              <label>Nombre del Equipo <span class="req">*</span></label>
+              <div class="csel" id="cselEquipo">
+                <div class="csel-trigger" onclick="toggleCsel('cselEquipo')"><span class="csel-val csel-placeholder">— Selecciona un equipo —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="" data-nombre="">— Selecciona un equipo —</div>
+                  {% for e in equipos %}
+                  <div class="csel-option" data-value="{{ e.id_equipo }}" data-nombre="{{ e.nombre_equipo }}">{{ e.nombre_equipo }}</div>
+                  {% endfor %}
+                </div>
+                <input type="hidden" name="fk_equipo" id="fEquipo"><input type="hidden" name="fk_nombre_equipo" id="fNombreEquipo">
+              </div>
+            </div>
+            <div class="form-field"><label>Sistema Operativo <span class="req">*</span></label><input type="text" name="sistema_operativo" id="fSo" maxlength="100"></div>
+            <div class="form-field"><label>Dirección IP</label><input type="text" name="ip_servidor" id="fIp" maxlength="50"></div>
+          </div>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Política de backup · configuración</div>
+          <div class="form-grid cols-5">
+            <div class="form-field">
+              <label>Tipo de Backup <span class="req">*</span></label>
+              <div class="csel" id="cselTipoBackup">
+                <div class="csel-trigger" onclick="toggleCsel('cselTipoBackup')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="ONLINE">Online</div>
+                  <div class="csel-option" data-value="OFFLINE">Offline</div>
+                </div>
+                <input type="hidden" name="tipo_backup" id="fTipoBackup">
+              </div>
+            </div>
+            <div class="form-field">
+              <label>Total GB a respaldar <span class="req">*</span></label>
+              <div class="suffix-wrap" id="wrapGbRespaldar">
+                <input type="text" id="fGbRespaldar" placeholder="500" inputmode="decimal" oninput="soloNumerosDecimal(this,20);syncGbRespaldar()">
+                <span class="input-suffix">GB</span>
+              </div>
+              <input type="hidden" name="total_gb_respaldar" id="fGbRespaldarVal">
+            </div>
+            <div class="form-field"><label>Crecimiento anual probable</label><input type="text" name="total_gb_crecimiento" id="fGbCrecimiento" maxlength="20" value="Anual" readonly></div>
+            <div class="form-field">
+              <label>Periodicidad <span class="req">*</span></label>
+              <div class="csel" id="cselPeriodicidad">
+                <div class="csel-trigger" onclick="toggleCsel('cselPeriodicidad')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="DIARIO">Diario</div>
+                  <div class="csel-option" data-value="SEMANAL">Semanal</div>
+                  <div class="csel-option" data-value="MENSUAL">Mensual</div>
+                  <div class="csel-option" data-value="ANUAL">Anual</div>
+                </div>
+                <input type="hidden" name="periodicidad" id="fPeriodicidad">
+              </div>
+            </div>
+            <div class="form-field">
+              <label>Nivel de Backup <span class="req">*</span></label>
+              <div class="csel" id="cselNivelBackup">
+                <div class="csel-trigger" onclick="toggleCsel('cselNivelBackup')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="FULL">Full</div>
+                  <div class="csel-option" data-value="INCREMENTAL">Incremental</div>
+                  <div class="csel-option" data-value="DIFERENCIAL">Diferencial</div>
+                </div>
+                <input type="hidden" name="nivel_backup" id="fNivelBackup">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Política de backup · programación</div>
+          <div class="form-grid cols-4">
+            <div class="form-field"><label>Agenda <span class="req">*</span></label><input type="text" name="agenda" id="fAgenda" maxlength="200" placeholder="Ej: Lunes a Viernes"></div>
+            <div class="form-field"><label>Retención de datos (días)</label><input type="text" name="retencion_dias" id="fRetencion" value="1095" readonly></div>
+            <div class="form-field">
+              <label>Hora de inicio <span class="req">*</span></label>
+              <input type="time" id="fHoraInicio">
+            </div>
+            <div class="form-field">
+              <label>Hora de fin <span class="req">*</span></label>
+              <input type="time" id="fHoraFin">
+              <input type="hidden" name="horario" id="fHorario">
+            </div>
+            <div class="form-field full"><label>Observaciones</label><textarea name="observaciones_politica" id="fObservacionesPol" rows="2" maxlength="500"></textarea></div>
+          </div>
+        </div>
+        </div>
+
+        <input type="hidden" name="firma_ti_json" id="firmaJsonR">
+        <div class="m-section">
+          <div class="m-section-title">Firma del técnico</div>
+        <div class="firma-card">
+          <div class="bloque-titulo">Tu firma <span class="req">*</span></div>
+          <div class="firma-wrap" id="firmaWrapR"><canvas id="canvasFirmaR"></canvas></div>
+          <p class="firma-nota">Traza tu firma dentro del recuadro con el ratón o el dedo. Se guarda junto con el reporte.</p>
+          <button type="button" class="btn-limpiar-firma" onclick="limpiarFirmaR()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-trash"/></svg> Limpiar firma</button>
+        </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" onclick="cerrarNuevo()">Cancelar</button>
+        <button type="submit" class="btn-save">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalCompletar" onclick="if(event.target===this) cerrarCompletar()">
+  <div class="modal modal-xl">
+    <div class="modal-header"><h2>Completar Respaldo</h2><button class="modal-close" onclick="cerrarCompletar()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
+    <form id="formCompletar" method="POST" onsubmit="return prepararEnvioComp(this)">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="val-alert" id="valAlertComp">
+          <div class="val-alert-title"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg> Faltan los siguientes campos obligatorios:</div>
+          <ul id="valListComp"></ul>
+        </div>
+        <div id="compInfo"></div>
+        <div class="m-section">
+          <div class="m-section-title">Solicitud</div>
+        <div class="form-grid cols-3">
+          <div class="form-field">
+            <label>Tipo de Solicitud <span class="req">*</span></label>
+            <div class="csel" id="cselTipoSolicitudComp">
+              <div class="csel-trigger" onclick="toggleCsel('cselTipoSolicitudComp')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+              <div class="csel-dropdown">
+                <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                <div class="csel-option" data-value="ESPORADICO">Backup Esporádico</div>
+                <div class="csel-option" data-value="PROGRAMADA">Política de Backup Programada</div>
+              </div>
+              <input type="hidden" name="tipo_solicitud" id="fTipoSolicitudComp">
+            </div>
+          </div>
+          <div class="form-field"><label>Tipo/Fuente de Datos</label><input type="text" name="tipo_fuente_datos" id="fTipoFuenteComp" maxlength="300" value="Carpetas, Archivos y Office" readonly></div>
+          <div class="form-field"><label>Ruta si es unidad compartida <span class="req">*</span></label><input type="text" name="ruta_unidad_compartida" id="fRutaComp" maxlength="300"></div>
+          <div class="form-field full"><label>Archivos a respaldar <span class="req">*</span></label><textarea name="archivos_respaldar" id="fArchivosComp" rows="2" maxlength="500"></textarea></div>
+        </div>
+        </div>
+
+        <div id="politicaWrapComp">
+        <div class="m-section">
+          <div class="m-section-title">Política de backup · equipo</div>
+          <div class="form-grid cols-3">
+            <div class="form-field" id="wrapServidorComp">
+              <label>Nombre del Equipo <span class="req">*</span></label>
+              <input type="text" id="servidorFijoComp" readonly style="opacity:.6;display:none">
+              <div class="csel" id="cselServidorComp" style="display:none">
+                <div class="csel-trigger" onclick="toggleCsel('cselServidorComp')"><span class="csel-val csel-placeholder">— Selecciona un equipo —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona un equipo —</div>
+                  {% for e in equipos %}
+                  <div class="csel-option" data-value="{{ e.nombre_equipo }}">{{ e.nombre_equipo }}</div>
+                  {% endfor %}
+                </div>
+                <input type="hidden" name="nombre_servidor" id="fServidorComp">
+              </div>
+            </div>
+            <div class="form-field"><label>Sistema Operativo <span class="req">*</span></label><input type="text" name="sistema_operativo" id="fSoComp" maxlength="100"></div>
+            <div class="form-field"><label>Dirección IP</label><input type="text" name="ip_servidor" id="fIpComp" maxlength="50"></div>
+          </div>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Política de backup · configuración</div>
+          <div class="form-grid cols-5">
+            <div class="form-field">
+              <label>Tipo de Backup <span class="req">*</span></label>
+              <div class="csel" id="cselTipoBackupComp">
+                <div class="csel-trigger" onclick="toggleCsel('cselTipoBackupComp')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="ONLINE">Online</div>
+                  <div class="csel-option" data-value="OFFLINE">Offline</div>
+                </div>
+                <input type="hidden" name="tipo_backup" id="fTipoBackupComp">
+              </div>
+            </div>
+            <div class="form-field">
+              <label>Total GB a respaldar <span class="req">*</span></label>
+              <div class="suffix-wrap" id="wrapGbRespaldarComp">
+                <input type="text" id="fGbRespaldarComp" placeholder="500" inputmode="decimal" oninput="soloNumerosDecimal(this,20);syncGbRespaldarComp()">
+                <span class="input-suffix">GB</span>
+              </div>
+              <input type="hidden" name="total_gb_respaldar" id="fGbRespaldarCompVal">
+            </div>
+            <div class="form-field"><label>Crecimiento anual probable</label><input type="text" name="total_gb_crecimiento" id="fGbCrecimientoComp" maxlength="20" value="Anual" readonly></div>
+            <div class="form-field">
+              <label>Periodicidad <span class="req">*</span></label>
+              <div class="csel" id="cselPeriodicidadComp">
+                <div class="csel-trigger" onclick="toggleCsel('cselPeriodicidadComp')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="DIARIO">Diario</div>
+                  <div class="csel-option" data-value="SEMANAL">Semanal</div>
+                  <div class="csel-option" data-value="MENSUAL">Mensual</div>
+                  <div class="csel-option" data-value="ANUAL">Anual</div>
+                </div>
+                <input type="hidden" name="periodicidad" id="fPeriodicidadComp">
+              </div>
+            </div>
+            <div class="form-field">
+              <label>Nivel de Backup <span class="req">*</span></label>
+              <div class="csel" id="cselNivelBackupComp">
+                <div class="csel-trigger" onclick="toggleCsel('cselNivelBackupComp')"><span class="csel-val csel-placeholder">— Selecciona —</span><span class="csel-arrow"></span></div>
+                <div class="csel-dropdown">
+                  <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
+                  <div class="csel-option" data-value="FULL">Full</div>
+                  <div class="csel-option" data-value="INCREMENTAL">Incremental</div>
+                  <div class="csel-option" data-value="DIFERENCIAL">Diferencial</div>
+                </div>
+                <input type="hidden" name="nivel_backup" id="fNivelBackupComp">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-section">
+          <div class="m-section-title">Política de backup · programación</div>
+          <div class="form-grid cols-4">
+            <div class="form-field"><label>Agenda <span class="req">*</span></label><input type="text" name="agenda" id="fAgendaComp" maxlength="200" placeholder="Ej: Lunes a Viernes"></div>
+            <div class="form-field"><label>Retención de datos (días)</label><input type="text" name="retencion_dias" id="fRetencionComp" value="1095" readonly></div>
+            <div class="form-field">
+              <label>Hora de inicio <span class="req">*</span></label>
+              <input type="time" id="fHoraInicioComp">
+            </div>
+            <div class="form-field">
+              <label>Hora de fin <span class="req">*</span></label>
+              <input type="time" id="fHoraFinComp">
+              <input type="hidden" name="horario" id="fHorarioComp">
+            </div>
+            <div class="form-field full"><label>Observaciones</label><textarea name="observaciones_politica" id="fObservacionesPolComp" rows="2" maxlength="500"></textarea></div>
+          </div>
+        </div>
+        </div>
+
+        <input type="hidden" name="firma_ti_json" id="firmaJsonComp">
+        <div class="m-section">
+          <div class="m-section-title">Firma del técnico</div>
+        <div class="firma-card">
+          <div class="bloque-titulo">Tu firma <span class="txt-opcional">opcional — puedes firmar después</span></div>
+          <div class="firma-wrap" id="firmaWrapComp"><canvas id="canvasFirmaComp"></canvas></div>
+          <p class="firma-nota">Traza tu firma dentro del recuadro con el ratón o el dedo. Se guarda junto con el reporte.</p>
+          <button type="button" class="btn-limpiar-firma" onclick="limpiarFirmaComp()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-trash"/></svg> Limpiar firma</button>
+        </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" onclick="cerrarCompletar()">Cancelar</button>
+        <button type="submit" class="btn-save">Completar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+  function soloNumerosDecimal(el, max){
+    let v = el.value.replace(/[^0-9.]/g, '');
+    const partes = v.split('.');
+    if(partes.length > 2) v = partes[0] + '.' + partes.slice(1).join('');
+    el.value = v.slice(0, max);
+  }
+  function syncGbRespaldar(){
+    const n = document.getElementById('fGbRespaldar').value.trim();
+    document.getElementById('fGbRespaldarVal').value = n ? n+' GB' : '';
+  }
+  function syncGbRespaldarComp(){
+    const n = document.getElementById('fGbRespaldarComp').value.trim();
+    document.getElementById('fGbRespaldarCompVal').value = n ? n+' GB' : '';
+  }
+
+  ['cselEquipo','cselTipoBackup','cselPeriodicidad','cselNivelBackup',
+   'cselTipoBackupComp','cselPeriodicidadComp','cselNivelBackupComp',
+   'cselTipoSolicitud','cselTipoSolicitudComp','cselServidorComp',
+   'cselSolicitante'].forEach(id=>initCsel(id));
+
+  let trazosR = [], dibujandoR = false;
+  function iniciarCanvasR(){
+    const canvas = document.getElementById('canvasFirmaR');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    canvas.onpointerdown = e=>{
+      dibujandoR = true;
+      const r = canvas.getBoundingClientRect();
+      trazosR.push([{x:e.clientX-r.left, y:e.clientY-r.top}]);
+      ctx.beginPath(); ctx.moveTo(e.clientX-r.left, e.clientY-r.top);
+      document.getElementById('firmaWrapR').classList.add('firmado');
+    };
+    canvas.onpointermove = e=>{
+      if(!dibujandoR) return;
+      const r = canvas.getBoundingClientRect();
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      trazosR[trazosR.length-1].push({x,y}); ctx.lineTo(x,y); ctx.stroke();
+    };
+    if (!canvas.dataset.evtSuelta) {
+      canvas.dataset.evtSuelta = '1';
+      window.addEventListener('pointerup', ()=>{ dibujandoR=false; });
+    }
+  }
+  window.limpiarFirmaR = function(){
+    trazosR = [];
+    const canvas = document.getElementById('canvasFirmaR');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('firmaWrapR').classList.remove('firmado');
+  };
+
+  function abrirNuevo(){
+    limpiarFirmaR();
+    ['fRuta','fArchivos','fSo','fIp','fGbRespaldar','fGbRespaldarVal',
+     'fAgenda','fHoraInicio','fHoraFin','fObservacionesPol'].forEach(id=>document.getElementById(id).value='');
+    resetCsel('cselEquipo'); resetCsel('cselTipoSolicitud'); resetCsel('cselTipoBackup');
+    resetCsel('cselSolicitante');
+    resetCsel('cselPeriodicidad'); resetCsel('cselNivelBackup');
+    limpiarErroresNuevo();
+    document.getElementById('modalNuevo').classList.add('open');
+    setTimeout(iniciarCanvasR, 60);
+  }
+  function cerrarNuevo(){ document.getElementById('modalNuevo').classList.remove('open'); }
+  function limpiarErroresNuevo(){
+    document.querySelectorAll('#formNuevo .error').forEach(e=>e.classList.remove('error'));
+    document.getElementById('valAlert').classList.remove('show');
+    document.getElementById('valList').innerHTML = '';
+  }
+  function marcarErrorNuevo(id, label, lista){
+    document.getElementById(id).classList.add('error');
+    lista.push(label);
+  }
+  function marcarCselErrorNuevo(id, label, lista){
+    document.getElementById(id).classList.add('error');
+    lista.push(label);
+  }
+
+  // envío real de formulario (navegación completa): el mensaje de éxito/error
+  // de Django se ve en la página siguiente sin que un fetch+reload se lo coma.
+  function prepararEnvioR(form){
+    limpiarErroresNuevo();
+    const horaInicio = document.getElementById('fHoraInicio').value;
+    const horaFin = document.getElementById('fHoraFin').value;
+    const errores = [];
+    if(!document.getElementById('fSolicitante').value) marcarCselErrorNuevo('cselSolicitante','Solicitante',errores);
+    if(!document.getElementById('fEquipo').value) marcarCselErrorNuevo('cselEquipo','Nombre del Equipo',errores);
+    if(!document.getElementById('fTipoSolicitud').value) marcarCselErrorNuevo('cselTipoSolicitud','Tipo de Solicitud',errores);
+    if(!document.getElementById('fRuta').value.trim()) marcarErrorNuevo('fRuta','Ruta si es unidad compartida',errores);
+    if(!document.getElementById('fArchivos').value.trim()) marcarErrorNuevo('fArchivos','Archivos a respaldar',errores);
+    if(!document.getElementById('fSo').value.trim()) marcarErrorNuevo('fSo','Sistema Operativo',errores);
+    if(!document.getElementById('fTipoBackup').value) marcarCselErrorNuevo('cselTipoBackup','Tipo de Backup',errores);
+    if(!document.getElementById('fGbRespaldar').value.trim()) marcarErrorNuevo('wrapGbRespaldar','Total GB a respaldar',errores);
+    if(!document.getElementById('fPeriodicidad').value) marcarCselErrorNuevo('cselPeriodicidad','Periodicidad',errores);
+    if(!document.getElementById('fNivelBackup').value) marcarCselErrorNuevo('cselNivelBackup','Nivel de Backup',errores);
+    if(!document.getElementById('fAgenda').value.trim()) marcarErrorNuevo('fAgenda','Agenda',errores);
+    if(!horaInicio) marcarErrorNuevo('fHoraInicio','Hora de inicio',errores);
+    if(!horaFin) marcarErrorNuevo('fHoraFin','Hora de fin',errores);
+    if(trazosR.length === 0) errores.push('Tu firma');
+    if(errores.length > 0){
+      const lista = document.getElementById('valList');
+      errores.forEach(e=>{ const li=document.createElement('li'); li.textContent=e; lista.appendChild(li); });
+      document.getElementById('valAlert').classList.add('show');
+      document.querySelector('#modalNuevo .modal').scrollTop = 0;
+      return false;
+    }
+    document.getElementById('fHorario').value = `${hora24a12(horaInicio)} - ${hora24a12(horaFin)}`;
+    document.getElementById('firmaJsonR').value = JSON.stringify(trazosR);
+    return true;
+  }
+
+  let trazosComp = [], dibujandoComp = false, idRespaldoComp = null;
+  function iniciarCanvasComp(){
+    const canvas = document.getElementById('canvasFirmaComp');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    canvas.onpointerdown = e=>{
+      dibujandoComp = true;
+      const r = canvas.getBoundingClientRect();
+      trazosComp.push([{x:e.clientX-r.left, y:e.clientY-r.top}]);
+      ctx.beginPath(); ctx.moveTo(e.clientX-r.left, e.clientY-r.top);
+      document.getElementById('firmaWrapComp').classList.add('firmado');
+    };
+    canvas.onpointermove = e=>{
+      if(!dibujandoComp) return;
+      const r = canvas.getBoundingClientRect();
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      trazosComp[trazosComp.length-1].push({x,y}); ctx.lineTo(x,y); ctx.stroke();
+    };
+    if (!canvas.dataset.evtSuelta) {
+      canvas.dataset.evtSuelta = '1';
+      window.addEventListener('pointerup', ()=>{ dibujandoComp=false; });
+    }
+  }
+  window.limpiarFirmaComp = function(){
+    trazosComp = [];
+    const canvas = document.getElementById('canvasFirmaComp');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('firmaWrapComp').classList.remove('firmado');
+  };
+
+  function setCselComp(id, value){
+    if(!value) return;
+    const csel = document.getElementById(id);
+    const opt = csel.querySelector(`.csel-option[data-value="${value}"]`);
+    if(!opt) return;
+    csel.querySelector('.csel-val').textContent = opt.textContent;
+    csel.querySelector('.csel-val').classList.remove('csel-placeholder');
+    csel.querySelector('input[type=hidden]').value = value;
+    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
+    opt.classList.add('selected');
+  }
+
+  function poblarNombreEquipoComp(equipoTicket){
+    const fijo = document.getElementById('servidorFijoComp');
+    const csel = document.getElementById('cselServidorComp');
+    if(equipoTicket){
+      fijo.value = equipoTicket;
+      fijo.style.display = '';
+      csel.style.display = 'none';
+      document.getElementById('fServidorComp').value = equipoTicket;
+    } else {
+      fijo.style.display = 'none';
+      csel.style.display = '';
+      resetCsel('cselServidorComp');
+    }
+  }
+  function poblarCamposComp(d, incluirTipoSolicitud){
+    document.getElementById('compInfo').innerHTML = `<div class="info-readonly"><b>Equipo</b>${d.equipo || '—'}</div>`;
+    poblarNombreEquipoComp(d.equipo);
+    document.getElementById('fRutaComp').value = d.ruta_unidad_compartida || '';
+    document.getElementById('fArchivosComp').value = d.archivos_respaldar || '';
+    document.getElementById('fSoComp').value = d.sistema_operativo || '';
+    document.getElementById('fIpComp').value = d.ip_servidor || '';
+    document.getElementById('fGbRespaldarComp').value = (d.total_gb_respaldar || '').replace(/\s*GB\s*$/i, '');
+    document.getElementById('fGbRespaldarCompVal').value = d.total_gb_respaldar || '';
+    document.getElementById('fAgendaComp').value = d.agenda || '';
+    document.getElementById('fObservacionesPolComp').value = d.observaciones_politica || '';
+    const partesHorario = (d.horario || '').match(/^(\d{1,2}:\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}:\d{2})\s*(AM|PM)$/i);
+    if(partesHorario){
+      document.getElementById('fHoraInicioComp').value = hora12a24(partesHorario[1], partesHorario[2].toUpperCase());
+      document.getElementById('fHoraFinComp').value = hora12a24(partesHorario[3], partesHorario[4].toUpperCase());
+    }
+    // Tipo de Solicitud NO se precarga en "Completar": el valor guardado al crear el registro en
+    // blanco es solo un valor técnico por defecto (la columna no admite vacío), no una elección
+    // real del usuario — debe escogerlo él mismo cada vez. En "Consultar" sí se muestra (ahí ya
+    // refleja una elección real que quedó guardada al completar).
+    if(incluirTipoSolicitud) setCselComp('cselTipoSolicitudComp', d.tipo_solicitud);
+    setCselComp('cselTipoBackupComp', d.tipo_backup);
+    setCselComp('cselPeriodicidadComp', d.periodicidad);
+    setCselComp('cselNivelBackupComp', d.nivel_backup);
+  }
+  function abrirCompletar(idRespaldo){
+    idRespaldoComp = idRespaldo; trazosComp = [];
+    document.getElementById('modalCompletar').classList.remove('modal-consultar');
+    document.querySelector('#modalCompletar .modal-header h2').textContent = 'Completar Respaldo';
+    document.querySelector('#modalCompletar .btn-cancel').textContent = 'Cancelar';
+    document.getElementById('formCompletar').action = `/respaldos/completar/${idRespaldo}/`;
+    ['fRutaComp','fArchivosComp','fServidorComp','fSoComp','fIpComp',
+     'fGbRespaldarComp','fGbRespaldarCompVal','fAgendaComp','fHoraInicioComp','fHoraFinComp','fObservacionesPolComp'
+    ].forEach(id=>document.getElementById(id).value='');
+    resetCsel('cselTipoSolicitudComp'); resetCsel('cselTipoBackupComp');
+    resetCsel('cselPeriodicidadComp'); resetCsel('cselNivelBackupComp');
+    limpiarErroresComp();
+    document.getElementById('compInfo').innerHTML = 'Cargando…';
+    document.getElementById('modalCompletar').classList.add('open');
+    fetch(`/respaldos/datos/${idRespaldo}/`).then(r=>r.ok?r.json():null).then(d=>{
+      if(!d) return;
+      // si ya se guardó al menos una vez (aunque sin firma), estos campos ya no están vacíos —
+      // en ese caso Tipo de Solicitud sí refleja una elección real y se debe mostrar.
+      const yaGuardado = !!(d.ruta_unidad_compartida || d.archivos_respaldar || d.sistema_operativo);
+      poblarCamposComp(d, yaGuardado);
+      setTimeout(iniciarCanvasComp, 50);
+    });
+  }
+  function abrirConsultarResp(idRespaldo){
+    document.getElementById('modalCompletar').classList.add('modal-consultar');
+    document.querySelector('#modalCompletar .modal-header h2').innerHTML = 'Respaldo <span class="modal-consultar-badge"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-eye"/></svg> SOLO LECTURA</span>';
+    document.querySelector('#modalCompletar .btn-cancel').textContent = 'Cerrar';
+    document.getElementById('valAlertComp').classList.remove('show');
+    document.getElementById('compInfo').innerHTML = 'Cargando…';
+    document.getElementById('modalCompletar').classList.add('open');
+    fetch(`/respaldos/datos/${idRespaldo}/`).then(r=>r.ok?r.json():null).then(d=>{
+      if(!d) return;
+      poblarCamposComp(d, true);
+    });
+  }
+  function cerrarCompletar(){
+    document.getElementById('modalCompletar').classList.remove('open');
+    document.getElementById('modalCompletar').classList.remove('modal-consultar');
+  }
+
+  function limpiarErroresComp(){
+    document.querySelectorAll('#formCompletar .error').forEach(e=>e.classList.remove('error'));
+    document.getElementById('valAlertComp').classList.remove('show');
+    document.getElementById('valListComp').innerHTML = '';
+  }
+  function marcarErrorComp(id, label, lista){
+    document.getElementById(id).classList.add('error');
+    lista.push(label);
+  }
+  function marcarCselErrorComp(id, label, lista){
+    document.getElementById(id).classList.add('error');
+    lista.push(label);
+  }
+  function hora12a24(hora, ampm){
+    let [h, m] = hora.split(':').map(Number);
+    if(ampm === 'PM' && h !== 12) h += 12;
+    if(ampm === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  function hora24a12(hora24){
+    let [h, m] = hora24.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12; if(h12 === 0) h12 = 12;
+    return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+  }
+  function prepararEnvioComp(form){
+    limpiarErroresComp();
+    const horaInicio = document.getElementById('fHoraInicioComp').value;
+    const horaFin = document.getElementById('fHoraFinComp').value;
+    const errores = [];
+    if(!document.getElementById('fTipoSolicitudComp').value) marcarCselErrorComp('cselTipoSolicitudComp','Tipo de Solicitud',errores);
+    if(!document.getElementById('fRutaComp').value.trim()) marcarErrorComp('fRutaComp','Ruta si es unidad compartida',errores);
+    if(!document.getElementById('fArchivosComp').value.trim()) marcarErrorComp('fArchivosComp','Archivos a respaldar',errores);
+    if(!document.getElementById('fServidorComp').value.trim()){
+      document.getElementById('servidorFijoComp').classList.add('error');
+      document.getElementById('cselServidorComp').classList.add('error');
+      errores.push('Nombre del Equipo');
+    }
+    if(!document.getElementById('fSoComp').value.trim()) marcarErrorComp('fSoComp','Sistema Operativo',errores);
+    if(!document.getElementById('fTipoBackupComp').value) marcarCselErrorComp('cselTipoBackupComp','Tipo de Backup',errores);
+    if(!document.getElementById('fGbRespaldarComp').value.trim()) marcarErrorComp('wrapGbRespaldarComp','Total GB a respaldar',errores);
+    if(!document.getElementById('fPeriodicidadComp').value) marcarCselErrorComp('cselPeriodicidadComp','Periodicidad',errores);
+    if(!document.getElementById('fNivelBackupComp').value) marcarCselErrorComp('cselNivelBackupComp','Nivel de Backup',errores);
+    if(!document.getElementById('fAgendaComp').value.trim()) marcarErrorComp('fAgendaComp','Agenda',errores);
+    if(!horaInicio) marcarErrorComp('fHoraInicioComp','Hora de inicio',errores);
+    if(!horaFin) marcarErrorComp('fHoraFinComp','Hora de fin',errores);
+    if(errores.length > 0){
+      const lista = document.getElementById('valListComp');
+      errores.forEach(e=>{ const li=document.createElement('li'); li.textContent=e; lista.appendChild(li); });
+      document.getElementById('valAlertComp').classList.add('show');
+      document.querySelector('#modalCompletar .modal').scrollTop = 0;
+      return false;
+    }
+    document.getElementById('fHorarioComp').value = `${hora24a12(horaInicio)} - ${hora24a12(horaFin)}`;
+    document.getElementById('firmaJsonComp').value = trazosComp.length > 0 ? JSON.stringify(trazosComp) : '';
+    return true;
+  }
+</script>
+{% endblock %}

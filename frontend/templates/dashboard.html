@@ -1,230 +1,208 @@
+{% extends "base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>T.I Sistema — Panel de Control</title>
-  <link rel="stylesheet" href="{% static 'css/style.css' %}">
-  <style>
-    .notif-ok{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:10px;padding:13px 18px;margin-bottom:16px;color:#34d399;font-size:.88rem;font-weight:600}
-  </style>
-</head>
-<body>
-<div class="app-layout">
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <div class="s-icon">⚙️</div>
-      <div>
-        <div class="s-name">T.I SISTEMA</div>
-        <div class="s-sub">Panel de Control</div>
-      </div>
-    </div>
-    <nav class="sidebar-nav">
-      {% if rol_id == 'ti1' %}
-      <div class="nav-section-title">General</div>
-      <a href="#" class="nav-item active">
-        <span class="n-icon">🏠</span> Inicio
-      </a>
-      <a href="#" class="nav-item">
-        <span class="n-icon">📊</span> Reportes
-      </a>
-      <div class="nav-section-title">Soporte T.I</div>
-      <a href="{% url 'equipos_lista' %}" class="nav-item">
-        <span class="n-icon">🖥️</span> Equipos
-      </a>
-      <a href="#" class="nav-item">
-        <span class="n-icon">🔧</span> Mantenimiento
-      </a>
-      <a href="{% url 'tickets_lista' %}" class="nav-item">
-        <span class="n-icon">🎫</span> Tickets
-      </a>
-      <a href="{% url 'tickets_seguimiento' %}" class="nav-item">
-        <span class="n-icon">📋</span> Seguimiento de Tickets
-      </a>
-      <div class="nav-section-title">Reservaciones</div>
-      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item">
-        <span class="n-icon">📽️</span> Apartar Proyector
-      </a>
-      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item">
-        <span class="n-icon">🏢</span> Sala de Juntas
-      </a>
-      <div class="nav-section-title">Administración</div>
-      <a href="{% url 'usuarios_lista' %}" class="nav-item">
-        <span class="n-icon">👥</span> Usuarios
-      </a>
-      <a href="{% url 'configuracion' %}" class="nav-item">
-        <span class="n-icon">⚙️</span> Configuración
-      </a>
-      {% else %}
-      <div class="nav-section-title">General</div>
-      <a href="{% url 'tickets_lista' %}" class="nav-item active">
-        <span class="n-icon">🎫</span> Gestión de Tickets
-      </a>
-      <a href="{% url 'tickets_seguimiento' %}" class="nav-item">
-        <span class="n-icon">📋</span> Seguimiento de Tickets
-      </a>
-      <div class="nav-section-title">Reservaciones</div>
-      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item">
-        <span class="n-icon">📽️</span> Apartar Proyector
-      </a>
-      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item">
-        <span class="n-icon">🏢</span> Sala de Juntas
-      </a>
-      {% endif %}
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-info">
-        <div class="user-avatar">
-          {{ username|first|upper }}
-        </div>
-        <div class="user-details">
-          <div class="u-name">{{ nombre }} {{ apellido }}</div>
-          <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
-        </div>
-      </div>
-      <a href="{% url 'logout' %}" class="btn-logout">
-        <span></span> Cerrar sesión
-      </a>
-    </div>
-  </aside>
-  <div class="main-content">
-    <header class="topbar">
-      <span class="topbar-title">Panel de Control</span>
-      <div class="topbar-right">
-        {% csrf_token %}
-        <span class="topbar-time" id="clock">--:--:--</span>
-        <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
-        <div class="notif-bell-wrap">
-          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
-          <div class="notif-panel" id="notifPanel">
-            <div class="notif-panel-head">
-              <span>Notificaciones</span>
-              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
-            </div>
-            <div class="notif-panel-list" id="notifList">
-              <div class="notif-empty">Sin notificaciones</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-    <div class="page-body">
-      <div class="welcome-banner">
-        <div class="wb-icon">🖥️</div>
-        <div>
-          <h2>Bienvenido, {{ nombre }} {{ apellidoPaterno }} {{ apellidoMaterno }}</h2>
-          <p>
-            Sistema de Tecnología e Infraestructura &mdash;
-            Acceso como <strong>{{ rol }}</strong>
-          </p>
-        </div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon ic-blue">🎫</div>
-          <div>
-            <div class="stat-val">3</div>
-            <div class="stat-lbl">Tickets Abiertos</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon ic-cyan">🖥️</div>
-          <div>
-            <div class="stat-val">—</div>
-            <div class="stat-lbl">Equipos Activos</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon ic-green">✅</div>
-          <div>
-            <div class="stat-val">—</div>
-            <div class="stat-lbl">Tareas Completadas</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon ic-yellow">⚠️</div>
-          <div>
-            <div class="stat-val">—</div>
-            <div class="stat-lbl">Alertas</div>
-          </div>
-        </div>
-      </div>
-      <div class="cards-row">
-        <div class="panel-card">
-          <h3>📡 Estado de Servicios</h3>
-          <ul class="status-list">
-            <li>
-              <span class="dot dot-green"></span>
-              Red Corporativa
-              <span class="s-right">Operativo</span>
-            </li>
-            <li>
-              <span class="dot dot-green"></span>
-              Servidor Principal
-              <span class="s-right">Operativo</span>
-            </li>
-            <li>
-              <span class="dot dot-yellow"></span>
-              Backup Nocturno
-              <span class="s-right">En espera</span>
-            </li>
-            <li>
-              <span class="dot dot-red"></span>
-              VPN Remota
-              <span class="s-right">Inactivo</span>
-            </li>
-          </ul>
-        </div>
-        <div class="panel-card">
-          <h3>🎫 Mis Últimos Tickets</h3>
-          <ul class="status-list">
-            <li>
-              <span class="dot dot-yellow"></span>
-              Problema con impresora
-              <span class="s-right">Pendiente</span>
-            </li>
-            <li>
-              <span class="dot dot-green"></span>
-              Acceso a carpeta compartida
-              <span class="s-right">Resuelto</span>
-            </li>
-            <li>
-              <span class="dot dot-red"></span>
-              PC no enciende — Área Admin
-              <span class="s-right">Urgente</span>
-            </li>
-          </ul>
-        </div>
-        <div class="panel-card">
-          <h3>📋 Actividad Reciente</h3>
-          <ul class="status-list">
-            <li>
-              <span class="dot dot-green"></span>
-              Sesión iniciada — {{ username }}
-              <span class="s-right">Ahora</span>
-            </li>
-            <li>
-              <span class="dot dot-green"></span>
-              Sistema en línea
-              <span class="s-right">Hoy</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
+
+{% block titulo %}Panel de Control{% endblock %}
+{% block encabezado %}Inicio{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Accesos directos: rejilla de tarjetas navegables */
+  .accesos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: var(--space-3);
+  }
+  .acceso {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    color: var(--text-primary);
+    transition: border-color var(--dur-fast) var(--ease),
+                box-shadow var(--dur-fast) var(--ease),
+                transform var(--dur-fast) var(--ease);
+  }
+  .acceso:hover {
+    border-color: var(--primary-border);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  .acceso-icono {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--primary-soft);
+    color: var(--primary-text);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .acceso-n { font-size: var(--fs-body); font-weight: 600; }
+  .acceso-d { font-size: var(--fs-label); color: var(--text-muted); margin-top: 1px; }
+
+  /* Panel de métricas todavía sin origen de datos */
+  .metricas-vacio {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-5);
+  }
+  .metricas-vacio .mv-icono {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--neutral-soft);
+    color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .metricas-vacio h3 {
+    font-size: var(--fs-h3); font-weight: 600; color: var(--text-primary);
+    text-transform: none; letter-spacing: 0; margin: 0 0 var(--space-1);
+  }
+  .metricas-vacio p { font-size: var(--fs-sm); color: var(--text-muted); max-width: 60ch; }
+
+  @media (max-width: 767px) {
+    .accesos { grid-template-columns: 1fr; }
+    .metricas-vacio { flex-direction: column; gap: var(--space-3); }
+  }
+</style>
+{% endblock %}
+
+{% block contenido %}
+
+<div class="welcome-banner">
+  <div class="wb-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-user"/></svg></div>
+  <div>
+    <h2>Hola, {{ nombre }} {{ apellidoPaterno }}</h2>
+    <p>{{ usuario_area|default:"Sin área asignada" }} &middot; Acceso como <strong>{{ rol }}</strong></p>
   </div>
 </div>
-<script>
-  (function () {
-    const el = document.getElementById('clock');
-    function tick() {
-      el.textContent = new Date().toLocaleTimeString('es-MX');
-    }
-    tick();
-    setInterval(tick, 1000);
-  })();
-</script>
-<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
-</body>
-</html>
+
+<section aria-labelledby="h-accesos">
+  <div class="section-header">
+    <div>
+      <h2 class="section-title" id="h-accesos">Accesos directos</h2>
+      <p class="section-sub">Los módulos disponibles para tu nivel de acceso.</p>
+    </div>
+  </div>
+
+  <div class="accesos">
+    <a class="acceso" href="{% url 'tickets_lista' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-ticket"/></svg></span>
+      <span>
+        <span class="acceso-n">Tickets</span>
+        <span class="acceso-d">Levanta y consulta reportes</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'tickets_seguimiento' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-clipboard"/></svg></span>
+      <span>
+        <span class="acceso-n">Seguimiento</span>
+        <span class="acceso-d">Atiende y cierra tickets</span>
+      </span>
+    </a>
+
+    {% if rol_id == 'ti1' %}
+    <a class="acceso" href="{% url 'equipos_lista' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-monitor"/></svg></span>
+      <span>
+        <span class="acceso-n">Equipos</span>
+        <span class="acceso-d">Inventario de cómputo</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'mantenimientos_lista' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-wrench"/></svg></span>
+      <span>
+        <span class="acceso-n">Mantenimientos</span>
+        <span class="acceso-d">Preventivos y correctivos</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'respaldos_lista' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-drive"/></svg></span>
+      <span>
+        <span class="acceso-n">Respaldos</span>
+        <span class="acceso-d">Programados y ejecutados</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'cambios_pieza_lista' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-cpu"/></svg></span>
+      <span>
+        <span class="acceso-n">Cambios de pieza</span>
+        <span class="acceso-d">Refaccionamientos</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'reporte_actividades' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-file"/></svg></span>
+      <span>
+        <span class="acceso-n">Reporte de actividades</span>
+        <span class="acceso-d">Genera el documento</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'usuarios_lista' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-users"/></svg></span>
+      <span>
+        <span class="acceso-n">Usuarios</span>
+        <span class="acceso-d">Altas, roles y puestos</span>
+      </span>
+    </a>
+    {% endif %}
+
+    <a class="acceso" href="{% url 'historial_mi_equipo' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-laptop"/></svg></span>
+      <span>
+        <span class="acceso-n">Historial de mi equipo</span>
+        <span class="acceso-d">Servicios y firmas</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'reservaciones' 'proyector' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-projector"/></svg></span>
+      <span>
+        <span class="acceso-n">Apartar proyector</span>
+        <span class="acceso-d">Calendario de reservación</span>
+      </span>
+    </a>
+
+    <a class="acceso" href="{% url 'reservaciones' 'sala' %}">
+      <span class="acceso-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-building"/></svg></span>
+      <span>
+        <span class="acceso-n">Sala de juntas</span>
+        <span class="acceso-d">Calendario de reservación</span>
+      </span>
+    </a>
+  </div>
+</section>
+
+{# Los indicadores del panel no tienen origen de datos todavía. Se muestra el
+   estado real en lugar de cifras de ejemplo, que restarían confianza al resto
+   de la información del sistema. #}
+<section aria-labelledby="h-metricas" style="margin-top:var(--space-7)">
+  <div class="section-header">
+    <div>
+      <h2 class="section-title" id="h-metricas">Indicadores</h2>
+      <p class="section-sub">Resumen operativo del área.</p>
+    </div>
+  </div>
+
+  <div class="panel-card metricas-vacio">
+    <div class="mv-icono"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-chart"/></svg></div>
+    <div>
+      <h3>Sin información disponible</h3>
+      <p>
+        Los indicadores de este panel aún no están conectados a la base de datos.
+        Mientras tanto, cada módulo muestra sus propias cifras: en
+        <a href="{% url 'tickets_lista' %}">Tickets</a> encuentras el total, los pendientes,
+        los que están en proceso y los finalizados.
+      </p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

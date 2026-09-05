@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block titulo %}Historial de mi Equipo{% endblock %}
+{% block encabezado %}Historial de mi Equipo{% endblock %}
+
+{% block extra_css %}
+<style>
+</style>
+{% endblock %}
+
+{% block sin_acceso %}
+  {% if not niveles.consultar %}
+  <div class="aviso-sin-acceso">
+    <div class="fc-icon"><svg class="icon icon-xl" aria-hidden="true"><use href="#ic-lock"/></svg></div>
+    <div class="fc-title">No tienes acceso a este módulo</div>
+    <p class="fc-hint">
+      Tu nivel de acceso actual no incluye el permiso de <strong>consulta</strong> para esta pantalla.
+      Solicítalo al administrador del sistema desde Configuración &rsaquo; Niveles.
+    </p>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% if niveles.consultar %}
+
+      <div class="tbl-wrap tbl-cards">
+  <div class="tbl-scroll">
+    <table>
+          <thead><tr><th>Servicio</th><th>Equipo</th><th>Detalle</th><th class="tc">Ticket</th><th class="tc">Estatus</th><th>Fecha</th><th class="tc">Acciones</th></tr></thead>
+          <tbody>
+            {% for r in registros %}
+            <tr>
+              <td data-l="Servicio">
+                {% if r.tipo == 'mantenimiento' %}<span class="tbadge tb-mant">Mantenimiento</span>
+                {% elif r.tipo == 'respaldo' %}<span class="tbadge tb-resp">Respaldo</span>
+                {% else %}<span class="tbadge tb-cp">Cambio de Pieza</span>{% endif %}
+              </td>
+              <td data-l="Equipo">{{ r.equipo|default:"—" }}</td>
+              <td data-l="Detalle"><div class="tk-desc">{{ r.resumen|default:"—" }}</div></td>
+              <td class="tc txt-muted"  data-l="Ticket">
+                {% if r.fk_ticket %}#{{ r.fk_ticket }}{% else %}Independiente{% endif %}
+              </td>
+              <td class="tc cell-status" data-l="Estatus">
+                {% if r.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
+                {% elif r.estatus == 'PTI' and r.firmable_aqui %}<span class="sbadge sb-pendiente">Pendiente tu firma</span>
+                {% elif r.estatus == 'PTI' %}<span class="sbadge sb-esperando">Firma en el ticket</span>
+                {% else %}<span class="sbadge sb-esperando">En proceso</span>{% endif %}
+              </td>
+              <td class="fecha-cell txt-muted"  data-l="Fecha">{{ r.fecha|date:"d/m/Y" }}</td>
+              <td class="tc cell-actions" data-l="Acciones">
+                {% if r.estatus == 'PTI' and r.firmable_aqui %}
+                <button type="button" class="btn-atender" onclick="abrirFirma('{{ r.tipo }}','{{ r.id }}')">Firmar</button>
+                {% elif r.estatus == 'PTI' and not r.firmable_aqui %}
+                <a href="{% url 'tickets_seguimiento' %}" class="btn-atender" style="opacity:.85">Ir al ticket</a>
+                {% elif r.tipo == 'mantenimiento' or r.estatus == 'FIN' %}
+                <button type="button" class="btn-atender" style="opacity:.75" onclick="abrirFirma('{{ r.tipo }}','{{ r.id }}',true)">Ver</button>
+                {% else %}<span class="txt-muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-monitor"/></svg></div><div class="empty-txt">
+              {% if sin_equipos %}No tienes ningún equipo asignado en el sistema todavía.{% else %}Aún no hay servicios registrados para tu equipo.{% endif %}
+            </div></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+  </div>
+      </div>
+{% endif %}
+{% endblock %}
+
+{% block fuera_layout %}
+<div class="modal-overlay" id="modalHist" onclick="if(event.target===this) cerrarFirma()">
+  <div class="modal modal-lg" id="modalHistCaja">
+    <div class="modal-header"><h2 id="histTitulo">Detalle del servicio</h2><button class="modal-close" onclick="cerrarFirma()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
+    <div class="modal-body ficha" id="histBody">Cargando…</div>
+    <div class="modal-footer" id="histFooter">
+      <button class="btn-cancel" onclick="cerrarFirma()" id="histCancelar">Cancelar</button>
+      <button class="btn-save" onclick="guardarFirmaHist()" id="histFirmar">Firmar y Cerrar</button>
+    </div>
+  </div>
+</div>
+<form id="csrfForm" style="display:none">{% csrf_token %}</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function getCsrf(){ return document.querySelector('#csrfForm [name=csrfmiddlewaretoken]').value; }
+
+  let histTipo=null, histId=null, soloVer=false, trazosHist=[], dibujandoHist=false;
+
+  function abrirFirma(tipo, id, verSolo){
+    histTipo = tipo; histId = id; soloVer = !!verSolo; trazosHist = [];
+    document.getElementById('histTitulo').textContent = soloVer ? 'Detalle del servicio' : 'Firmar de conformidad';
+    document.getElementById('histBody').innerHTML = 'Cargando…';
+    // En consulta el pie se conserva (misma silueta que el resto de modales):
+    // solo cambia la accion — se oculta Firmar y Cancelar pasa a ser Cerrar.
+    document.getElementById('histFirmar').hidden = soloVer;
+    document.getElementById('histCancelar').textContent = soloVer ? 'Cerrar' : 'Cancelar';
+    document.getElementById('modalHistCaja').classList.toggle('modal-consultar', soloVer);
+    document.getElementById('modalHist').classList.add('open');
+    fetch(`/mi-equipo/datos/${tipo}/${id}/`).then(r=>r.ok?r.json():null).then(d=>{
+      if(!d){ document.getElementById('histBody').innerHTML = 'No se pudo cargar la información.'; return; }
+      let html = '';
+      if(tipo === 'mantenimiento'){
+        html += `<div class="info-readonly"><b>Equipo</b>${d.equipo||'—'}</div>`;
+        html += `<div class="info-readonly full"><b>Descripción</b>${d.descripcion||'—'}</div>`;
+        if(d.observaciones) html += `<div class="info-readonly full"><b>Observaciones</b>${d.observaciones}</div>`;
+        if(d.hallazgo) html += `<div class="info-readonly full"><b>Hallazgo detectado</b>${d.hallazgo}</div>`;
+      } else if(tipo === 'respaldo'){
+        html += `<div class="info-readonly"><b>Equipo</b>${d.equipo||'—'}</div>`;
+        html += `<div class="info-readonly"><b>Tipo de solicitud</b>${d.tipo_solicitud||'—'}</div>`;
+        if(d.tipo_fuente_datos) html += `<div class="info-readonly"><b>Fuente de datos</b>${d.tipo_fuente_datos}</div>`;
+        if(d.archivos) html += `<div class="info-readonly full"><b>Archivos a respaldar</b>${d.archivos}</div>`;
+      } else {
+        html += `<div class="info-readonly"><b>Equipo</b>${d.equipo||'—'}</div>`;
+        const fmt = arr => (arr||[]).map(p=>`${p.cantidad}x ${p.descripcion} — ${p.marca} ${p.modelo} (Serie: ${p.numero_serie})`).join('<br>') || 'Ninguna';
+        html += `<div class="info-readonly full"><b>Piezas dañadas</b>${fmt(d.danadas)}</div>`;
+        html += `<div class="info-readonly full"><b>Piezas nuevas</b>${fmt(d.nuevas)}</div>`;
+      }
+      if(!soloVer){
+        html += `
+          <div class="firma-card">
+            <div class="bloque-titulo">Tu firma de conformidad</div>
+            <div class="firma-wrap" id="firmaWrapHist"><canvas id="canvasFirmaHist"></canvas></div>
+            <p class="firma-nota">Traza tu firma dentro del recuadro con el ratón o el dedo. Se guarda junto con el reporte.</p>
+            <button type="button" class="btn-limpiar-firma" onclick="limpiarFirmaHist()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-trash"/></svg> Limpiar firma</button>
+          </div>
+          <div class="val-alert" id="valAlertHist"></div>`;
+      }
+      document.getElementById('histBody').innerHTML = html;
+      if(!soloVer) setTimeout(iniciarCanvasHist, 50);
+    });
+  }
+  function cerrarFirma(){ document.getElementById('modalHist').classList.remove('open'); }
+
+  function iniciarCanvasHist(){
+    const canvas = document.getElementById('canvasFirmaHist');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    if (!canvas.dataset.evtTrazo) {
+    canvas.dataset.evtTrazo = '1';
+    canvas.addEventListener('pointerdown', e=>{
+      dibujandoHist = true;
+      const r = canvas.getBoundingClientRect();
+      trazosHist.push([{x:e.clientX-r.left, y:e.clientY-r.top}]);
+      ctx.beginPath(); ctx.moveTo(e.clientX-r.left, e.clientY-r.top);
+      document.getElementById('firmaWrapHist').classList.add('firmado');
+    });
+    canvas.addEventListener('pointermove', e=>{
+      if(!dibujandoHist) return;
+      const r = canvas.getBoundingClientRect();
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      trazosHist[trazosHist.length-1].push({x,y}); ctx.lineTo(x,y); ctx.stroke();
+    });
+    }
+    // El canvas se recrea en cada apertura (el cuerpo del modal se repinta),
+    // asi que el guard no puede vivir en el canvas: se registra una sola vez
+    // por pagina. Antes se acumulaba un listener global por cada apertura.
+    if (!window._sueltaHist) {
+      window._sueltaHist = true;
+      window.addEventListener('pointerup', ()=>{ dibujandoHist=false; });
+    }
+  }
+  window.limpiarFirmaHist = function(){
+    trazosHist = [];
+    const canvas = document.getElementById('canvasFirmaHist');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('firmaWrapHist').classList.remove('firmado');
+  };
+
+  async function guardarFirmaHist(){
+    if(trazosHist.length === 0){
+      const a = document.getElementById('valAlertHist');
+      a.innerHTML = '<svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg> Debes dibujar tu firma para dar conformidad.';
+      a.classList.add('show');
+      return;
+    }
+    // El boton se bloquea mientras se envia: firmar dos veces por un doble
+    // clic mandaba dos POST de conformidad.
+    const btn = document.querySelector('#histFooter .btn-save');
+    btnCargando(btn, true);
+    const fd = new FormData();
+    fd.append('firma_usuario_json', JSON.stringify(trazosHist));
+    try{
+      await fetch(`/mi-equipo/firmar/${histTipo}/${histId}/`, {method:'POST', headers:{'X-CSRFToken':getCsrf()}, body:fd});
+      location.reload();
+    }catch(e){
+      btnCargando(btn, false);
+      const a = document.getElementById('valAlertHist');
+      a.innerHTML = '<svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg> Error de conexión, inténtalo de nuevo.';
+      a.classList.add('show');
+    }
+  }
+</script>
+{% endblock %}

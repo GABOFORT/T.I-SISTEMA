@@ -1,25 +1,26 @@
 {% for t in tickets %}
 <tr data-estatus="{{ t.estatus }}" data-area="{{ t.area }}">
-  <td><span class="tk-id">#{{ t.id_ticket }}</span></td>
-  <td><span class="area-badge">{{ t.area|default:"—" }}</span></td>
-  <td>
+  <td class="cell-head" data-l="Folio"><span class="tk-id">#{{ t.id_ticket }}</span></td>
+  <td class="cell-hide" data-l="Área"><span class="area-badge">{{ t.area|default:"—" }}</span></td>
+  <td class="cell-title" data-l="Asunto">
     <div class="tk-titulo">{{ t.titulo }}</div>
     <div class="tk-desc">{{ t.descripcion|truncatechars:60 }}</div>
+    <div class="solo-movil" style="margin-top:6px"><span class="area-badge">{{ t.area|default:"—" }}</span></div>
   </td>
-  <td>
+  <td data-l="Creado por">
     <div class="dirigido-wrap">
-      <div class="dir-avatar">{{ t.creador_nombre|first|upper }}</div>
+      <div class="dir-avatar" aria-hidden="true">{{ t.creador_nombre|first|upper }}</div>
       <div class="dir-name">{{ t.creador_nombre }} {{ t.creador_apellido }} {{ t.creador_materno }}</div>
     </div>
   </td>
-  <td class="tc">
+  <td class="tc cell-status" data-l="Estatus">
     {% if t.estatus == 'PEN' %}<span class="sbadge sb-pendiente">Pendiente</span>
-    {% elif t.estatus == 'PRO' %}<span class="sbadge sb-proceso">En Proceso</span>
+    {% elif t.estatus == 'PRO' %}<span class="sbadge sb-proceso">En proceso</span>
     {% elif t.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
     {% endif %}
   </td>
-  <td class="fecha-cell">{{ t.fecha_cierre|date:"d/m/Y H:i" }}</td>
-  <td class="tc">
+  <td class="fecha-cell" data-l="Fecha de envío">{{ t.fecha_cierre|date:"d/m/Y H:i" }}</td>
+  <td class="tc cell-actions" data-l="Acciones">
     {% if rol_id == 'ti1' %}
       {% if t.estatus == 'PEN' %}
       {% if niveles.modificar %}
@@ -39,9 +40,14 @@
       {% elif t.estatus_firmas == 'PTI' %}
       <span class="sbadge sb-proceso">Falta firma usuario</span>
       {% elif t.estatus_firmas == 'FIN' %}
-      <a href="{% url 'reporte_mantenimiento' t.id_ticket %}" target="_blank" class="btn-atender" style="text-decoration:none;display:inline-block">Reporte</a>
+      <div class="actions" style="flex-wrap:wrap">
+        {% if t.es_mantenimiento %}<a href="{% url 'reporte_mantenimiento' t.id_ticket %}" target="_blank" class="btn-secondary btn-mini">Mant.</a>{% endif %}
+        {% if t.es_respaldo and t.id_respaldo %}<a href="{% url 'reporte_respaldo' t.id_respaldo %}" target="_blank" class="btn-secondary btn-mini">Resp.</a>{% endif %}
+        {% if t.es_cambio_pieza and t.id_cambio %}<a href="{% url 'reporte_cambio_pieza' t.id_cambio %}" target="_blank" class="btn-secondary btn-mini">Pieza</a>{% endif %}
+        {% if not t.es_mantenimiento and not t.es_respaldo and not t.es_cambio_pieza %}<span class="tipo-hint">Sin reporte</span>{% endif %}
+      </div>
       {% else %}
-      <span style="color:var(--text-muted);font-size:.78rem">—</span>
+      <span class="tipo-hint">—</span>
       {% endif %}
     {% else %}
       {% if t.estatus_firmas == 'PTI' and t.es_propio %}
@@ -51,19 +57,25 @@
       <button type="button" class="btn-atender btn-bloqueado">Firmar</button>
       {% endif %}
       {% elif t.estatus_firmas == 'FIN' and t.es_propio %}
-      <a href="{% url 'reporte_mantenimiento' t.id_ticket %}" target="_blank" class="btn-atender" style="text-decoration:none;display:inline-block">Reporte</a>
+      <div class="actions" style="flex-wrap:wrap">
+        {% if t.es_mantenimiento %}<a href="{% url 'reporte_mantenimiento' t.id_ticket %}" target="_blank" class="btn-secondary btn-mini">Mant.</a>{% endif %}
+        {% if t.es_respaldo and t.id_respaldo %}<a href="{% url 'reporte_respaldo' t.id_respaldo %}" target="_blank" class="btn-secondary btn-mini">Resp.</a>{% endif %}
+        {% if t.es_cambio_pieza and t.id_cambio %}<a href="{% url 'reporte_cambio_pieza' t.id_cambio %}" target="_blank" class="btn-secondary btn-mini">Pieza</a>{% endif %}
+        {% if not t.es_mantenimiento and not t.es_respaldo and not t.es_cambio_pieza %}<span class="tipo-hint">Sin reporte</span>{% endif %}
+      </div>
       {% else %}
-      <span style="color:var(--text-muted);font-size:.78rem">—</span>
+      <span class="tipo-hint">—</span>
       {% endif %}
     {% endif %}
   </td>
 </tr>
 {% empty %}
-<tr>
+<tr class="is-empty">
   <td colspan="7">
     <div class="empty-state">
-      <div class="empty-icon"></div>
-      <div class="empty-txt">No hay tickets enviados todavía.</div>
+      <div class="empty-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-inbox"/></svg></div>
+      <div class="empty-title">Nada por atender</div>
+      <p class="empty-txt">Cuando un usuario cierre y envíe un ticket al área de T.I, aparecerá aquí listo para diagnosticar.</p>
     </div>
   </td>
 </tr>

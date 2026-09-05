@@ -1,0 +1,11 @@
+<div class="firma-card">
+  <div class="firma-card-head">
+    <div class="bloque-titulo" style="margin:0">Tu firma</div>
+    <span class="txt-caption">Obligatoria</span>
+  </div>
+  <div class="firma-wrap" id="firmaWrap{{ prefix }}">
+    <canvas id="canvasFirma{{ prefix }}" class="firma-canvas"></canvas>
+  </div>
+  <p class="firma-nota">Traza tu firma dentro del recuadro con el ratón o el dedo. Se guarda junto con el reporte.</p>
+  <button type="button" class="btn-limpiar-firma" onclick="limpiarFirma{{ prefix }}()"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-trash"/></svg> Limpiar firma</button>
+</div>

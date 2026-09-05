@@ -1,0 +1,241 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reporte de Actividades — {{ desde_fmt }} al {{ hasta_fmt }}</title>
+  <style>
+    @page { size: letter; margin: 6mm 15mm 12mm 15mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #ccc; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .hoja { background: #fff; width: 216mm; min-height: 279.4mm; margin: 16px auto; padding: 6mm 15mm 12mm 15mm; box-shadow: 0 0 12px rgba(0,0,0,.3); }
+    .hoja, .hoja * { font-family: Arial, Helvetica, sans-serif !important; font-size: 10pt !important; }
+    .toolbar { max-width: 216mm; margin: 0 auto 14px; display: flex; justify-content: center; gap: 14px; padding: 6px 0; }
+    .toolbar button, .toolbar a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 26px; border: none; border-radius: 9px; font-size: .88rem; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .btn-guardar { background: #fff; color: #0070f3; border: 2px solid #0070f3 !important; }
+    .btn-imprimir { background: linear-gradient(135deg, #0ea5ff, #0070f3); color: #fff; }
+    .toolbar .btn-bloqueado { opacity: .45 !important; cursor: not-allowed !important; position: relative; z-index: 50; filter: grayscale(.6); }
+    .toolbar .btn-bloqueado:hover::after { content: 'Sin nivel de acceso'; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1f2937; color: #f87171; font-size: .7rem; font-weight: 700; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,77,109,.4); white-space: nowrap; z-index: 10000; }
+    table.encabezado { width: 100%; border-collapse: collapse; border: 2px solid #8ea6c4; }
+    table.encabezado > tbody > tr > td { border: 2px solid #8ea6c4; padding: 0; vertical-align: middle; }
+    .logo-cell { width: 26%; text-align: center; padding: 10px !important; }
+    .logo-cell img { max-width: 140px; max-height: 65px; }
+    .titulo-cell { text-align: center; padding: 10px 14px !important; }
+    .titulo-cell .subtitulo { font-weight: 700; letter-spacing: .5px; color: #6fa8dc; font-size: 11pt !important; }
+    .titulo-cell .titulo-doc { font-weight: 800; letter-spacing: .3px; color: #808080; margin-top: 4px; font-size: 10pt !important; }
+    .meta-cell { padding: 0 !important; }
+    .meta-cell table { width: 100%; border-collapse: collapse; }
+    .meta-cell table td { border: none; border-right: 2px solid #8ea6c4; padding: 5px 10px; text-align: center; font-size: 8pt !important; }
+    .meta-cell table td * { font-size: 8pt !important; }
+    .meta-cell table tr td:last-child { border-right: none; }
+    table.meta-obra { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table.meta-obra td { border: 1px solid #8ea6c4; padding: 5px 9px; font-size: 8.5pt !important; }
+    table.meta-obra td.lbl { background: #6fa8dc; color: #fff; font-weight: 700; width: 14%; white-space: nowrap; }
+    /* Reparto fijo: con el automatico, el titulo "Fecha de Actividades"
+       estiraba su columna al 20% de la tabla para una fecha de once
+       caracteres, y dejaba "Realizo" tan angosta que partia cada nombre en
+       tres lineas y engordaba todas las filas. */
+    table.actividades { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+    table.actividades thead { display: table-header-group; }
+    table.actividades tr { break-inside: avoid; page-break-inside: avoid; }
+    table.actividades th { background: #6fa8dc; color: #fff; border: 1px solid #5a8ec4; padding: 5px 7px; font-size: 8pt !important; text-transform: uppercase; }
+    table.actividades td { border: 1px solid #c8d6e5; padding: 5px 7px; font-size: 8.5pt !important; vertical-align: top; break-inside: avoid; }
+    table.actividades tr:nth-child(even) td { background: #f7fafc; }
+    .col-act { width: 19%; font-weight: 700; }
+    .col-desc { width: 24%; }
+    .col-fecha { width: 12%; }
+    td.col-fecha { white-space: nowrap; }
+    .col-obs { width: 25%; }
+    .col-realizo { width: 20%; }
+    table.actividades td { overflow-wrap: anywhere; }
+    /* El bloque de firma no se parte: al cortarse dejaba el rol en una hoja
+       y el puesto en la siguiente, con una pagina casi vacia al final. */
+    table.firmas { width: 100%; border-collapse: collapse; margin-top: 16px; break-inside: avoid; page-break-inside: avoid; }
+    table.firmas td { text-align: center; vertical-align: bottom; padding: 0 20px; }
+    table.firmas .rol { font-weight: 700; margin-bottom: 8px; }
+    table.firmas .nombre { font-weight: 700; border-bottom: 1px solid #000; display: inline-block; padding-bottom: 4px; margin-top: 30px; min-width: 260px; }
+    table.firmas .puesto { margin-top: 4px; color: #333; }
+    /* ── Encabezado y pie en todas las paginas ──
+       El documento entero va dentro de una tabla: el navegador repite su
+       <thead> arriba y su <tfoot> abajo en cada hoja impresa. Es la unica
+       forma de que la cabecera y el pie salgan en todas las paginas cuando
+       la bitacora se pasa de una, sin duplicarlos a mano. */
+    table.pagina { width: 100%; border-collapse: collapse; }
+    table.pagina > thead { display: table-header-group; }
+    table.pagina > tfoot { display: table-footer-group; }
+    table.pagina > thead > tr > td,
+    table.pagina > tbody > tr > td,
+    table.pagina > tfoot > tr > td { padding: 0; border: none; }
+    table.pagina > tbody > tr > td { vertical-align: top; }
+    .celda-cabecera { padding-bottom: 8px !important; }
+    .celda-pie { padding-top: 8px !important; }
+
+    .footer { padding-top: 0; }
+    .footer .copia { text-align: center; color: #0645AD; font-size: 9pt !important; margin-bottom: 10px; }
+    .footer .cert-row { margin-top: 4px; }
+    .footer .cert-texto { line-height: 1.35; text-align: justify; font-size: 9pt !important; }
+    .footer .cert-img { max-width: 130px; display: block; margin: 8px 0 0 auto; }
+    @media print {
+      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .toolbar { display: none; }
+      .hoja { box-shadow: none; margin: 0; width: auto; min-height: 261.4mm; padding: 0; }
+    }
+
+    /* ── Solo pantalla: la hoja mantiene su tamaño real (Carta) y se escala
+       para caber en pantallas pequeñas, sin deformar el documento. ── */
+    @media screen {
+      body { background: #d7dce3; padding-bottom: 24px; }
+      .toolbar {
+        position: sticky; top: 0; z-index: 60;
+        background: #d7dce3; margin-bottom: 12px;
+        padding: 12px 0; flex-wrap: wrap;
+      }
+      .toolbar button, .toolbar a {
+        min-height: 44px;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        transition: filter .15s ease-out, box-shadow .15s ease-out;
+      }
+      .toolbar button:hover, .toolbar a:hover { filter: brightness(1.06); }
+      .toolbar button:focus-visible, .toolbar a:focus-visible {
+        outline: 2px solid #0070f3; outline-offset: 3px;
+      }
+      .hoja-marco { overflow: hidden; }
+      .hoja { transform-origin: top center; }
+    }
+    @media screen and (max-width: 900px) {
+      .toolbar { padding: 10px 12px; gap: 8px; }
+      .toolbar button, .toolbar a { flex: 1; justify-content: center; padding: 11px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    {% if niveles.exportar %}
+    <a href="{% url 'reporte_actividades_documento_pdf' %}?desde={{ desde }}&hasta={{ hasta }}" class="btn-guardar">💾 Guardar como PDF</a>
+    <button class="btn-imprimir" onclick="window.print()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>Imprimir</button>
+    {% else %}
+    <a class="btn-guardar btn-bloqueado">💾 Guardar como PDF</a>
+    <button type="button" class="btn-imprimir btn-bloqueado"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>Imprimir</button>
+    {% endif %}
+  </div>
+  <div class="hoja-marco"><div class="hoja">
+    <table class="pagina">
+      <thead>
+        <tr><td class="celda-cabecera">
+          <table class="encabezado">
+          <tr>
+          <td class="logo-cell" rowspan="2"><img src="{% static 'img/CECSA.png' %}" alt="CECSA"></td>
+          <td class="meta-cell">
+          <table><tr>
+          <td><b>Código:</b> F-CECSA-TI-05</td>
+          <td><b>Página:</b> 1 de 1</td>
+          <td><b>Revisión:</b> 03 Julio 2024</td>
+          </tr></table>
+          </td>
+          </tr>
+          <tr>
+          <td class="titulo-cell">
+          <div class="subtitulo">CÓMPUTO Y ELECTRÓNICA DE COATZACOALCOS S.A. DE C.V.</div>
+          <div class="titulo-doc">FORMATO DE REPORTE DE ACTIVIDADES</div>
+          </td>
+          </tr>
+          </table>
+        </td></tr>
+      </thead>
+      <tfoot>
+        <tr><td class="celda-pie">
+          <div class="footer">
+          <div class="copia">Todo documento impreso será un documento como Copia No Controlada.</div>
+          <div class="cert-row">
+          <div class="cert-texto">
+          "CECSA, S.A DE C.V, Sistema de Gestión Integral de Calidad certificado por "INGEDESA" Alcance de Certificación
+          Servicios de inyección de gas a base de moto compresión, telemetría y obra mecánica para el sector de
+          hidrocarburos y Servicios de automatización y control a través de la programación e instrumentación para
+          el sector industrial. Número de certificado 001,002 y 003 INGEDESA en base a ISO 9001:2015, ISO 45001:2018
+          e ISO 14001:2015 Vigencia de Certificación 2027".
+          </div>
+          <img class="cert-img" src="{% static 'img/CERTIFICACIONES.png' %}" alt="Certificaciones">
+          </div>
+        </td></tr>
+      </tfoot>
+      <tbody>
+        <tr><td class="celda-cuerpo">
+          <table class="meta-obra">
+          <tr>
+          <td class="lbl">Contrato:</td><td>{{ numero_obra }}</td>
+          <td class="lbl">Instalación:</td><td>BASE OPERATIVA</td>
+          </tr>
+          <tr>
+          <td class="lbl">Obra:</td><td colspan="3">{{ descripcion_obra }}</td>
+          </tr>
+          <tr>
+          <td class="lbl">Fecha:</td><td colspan="3">{{ desde_fmt }} al {{ hasta_fmt }}</td>
+          </tr>
+          </table>
+
+          <table class="actividades">
+          <thead>
+          <tr><th class="col-act">Actividades</th><th class="col-desc">Descripción</th><th class="col-fecha">Fecha de Actividades</th><th class="col-obs">Observaciones</th><th class="col-realizo">Realizó</th></tr>
+          </thead>
+          <tbody>
+          {% for a in actividades %}
+          <tr>
+          <td class="col-act">{{ a.actividad }}</td>
+          <td>{{ a.descripcion }}</td>
+          <td class="col-fecha">{{ a.fecha }}</td>
+          <td>{{ a.observaciones }}</td>
+          <td class="col-realizo">{{ a.tecnico }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;color:#888">No hay actividades registradas en este rango de fechas.</td></tr>
+          {% endfor %}
+          </tbody>
+          </table>
+
+          <table class="firmas">
+          <tr>
+          <td>
+          <div class="rol">SUPERVISÓ</div>
+          <div class="nombre">&nbsp;</div>
+          <div class="puesto">JEFE DEL ÁREA</div>
+          </td>
+          </tr>
+          </table>
+        </td></tr>
+      </tbody>
+    </table>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  /* Ajusta la hoja al ancho disponible para poder revisarla desde el
+     teléfono. No altera el documento: solo lo escala en pantalla. */
+  (function () {
+    var hoja = document.querySelector('.hoja');
+    if (!hoja) return;
+    var marco = hoja.parentNode;
+    function ajustar() {
+      hoja.style.transform = '';
+      marco.style.height = '';
+      var disponible = document.documentElement.clientWidth - 24;
+      var real = hoja.offsetWidth;
+      if (!real) return;
+      var escala = Math.min(1, disponible / real);
+      if (escala < 1) {
+        hoja.style.transform = 'scale(' + escala + ')';
+        marco.style.height = (hoja.offsetHeight * escala) + 'px';
+      }
+    }
+    ajustar();
+    window.addEventListener('resize', ajustar);
+    window.addEventListener('beforeprint', function () {
+      hoja.style.transform = ''; marco.style.height = '';
+    });
+    window.addEventListener('afterprint', ajustar);
+  })();
+</script>
+</body>
+</html>

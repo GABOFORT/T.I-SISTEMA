@@ -1,66 +1,93 @@
 {% for t in tickets %}
 <tr data-estatus="{{ t.estatus }}">
-  <td><span class="tk-id">#{{ t.id_ticket }}</span></td>
-  <td><span class="area-badge">{{ t.area|default:"—" }}</span></td>
-  <td>
+  <td class="cell-head" data-l="Folio"><span class="tk-id">#{{ t.id_ticket }}</span></td>
+
+  <td class="cell-hide" data-l="Área"><span class="area-badge">{{ t.area|default:"—" }}</span></td>
+
+  <td class="cell-title" data-l="Asunto">
     <div class="tk-titulo">{{ t.titulo }}</div>
     <div class="tk-desc">{{ t.descripcion|truncatechars:60 }}</div>
+    {# En móvil el área viaja aquí: libera una columna sin perder el dato #}
+    <div class="solo-movil" style="margin-top:6px">
+      <span class="area-badge">{{ t.area|default:"—" }}</span>
+    </div>
   </td>
-  <td>
+
+  <td data-l="Dirigido a">
     <div class="dirigido-wrap">
-      <div class="dir-avatar">{{ t.dirigido_personal|first|upper }}</div>
+      <div class="dir-avatar" aria-hidden="true">{{ t.dirigido_personal|first|upper }}</div>
       <div class="dir-name">{{ t.dirigido_personal }}</div>
     </div>
   </td>
-  <td>
+
+  <td data-l="Creado por">
     <div class="dirigido-wrap">
-      <div class="dir-avatar" style="background:linear-gradient(135deg,#0ea5e9,#0070f3)">{{ t.creador_nombre|first|upper }}</div>
+      <div class="dir-avatar" aria-hidden="true" style="background:var(--accent-purple)">{{ t.creador_nombre|first|upper }}</div>
       <div class="dir-name">{{ t.creador_nombre }} {{ t.creador_apellido }} {{ t.creador_materno }}</div>
     </div>
   </td>
-  <td class="tc">
+
+  <td class="tc cell-status" data-l="Estatus">
     {% if t.estatus == 'PEN' %}<span class="sbadge sb-pendiente">Pendiente</span>
-    {% elif t.estatus == 'PRO' %}<span class="sbadge sb-proceso">En Proceso</span>
+    {% elif t.estatus == 'PRO' %}<span class="sbadge sb-proceso">En proceso</span>
     {% elif t.estatus == 'FIN' %}<span class="sbadge sb-finalizado">Finalizado</span>
-    {% else %}<span class="sbadge sb-cancelado">✕ Cancelado</span>{% endif %}
+    {% else %}<span class="sbadge sb-cancelado">Cancelado</span>{% endif %}
   </td>
-  <td class="tc">
+
+  <td class="tc" data-l="Envío a T.I">
     {% if t.estatus_usuario %}
     <span class="sbadge sb-cancelado">Cerrado</span>
     {% else %}
     <span class="sbadge sb-proceso">Abierto</span>
     {% endif %}
   </td>
-  <td class="fecha-cell">{{ t.fecha_creacion|date:"d/m/Y H:i" }}</td>
-  <td class="tc">
+
+  <td class="fecha-cell" data-l="Fecha">{{ t.fecha_creacion|date:"d/m/Y H:i" }}</td>
+
+  <td class="tc cell-actions" data-l="Acciones">
     <div class="actions">
-      <button class="ab ab-view" title="Ver detalle"
-        data-id="{{ t.id_ticket }}" onclick="verTicketBtn(this)">🔍</button>
+      <button class="ab ab-view" title="Ver detalle" aria-label="Ver el detalle del ticket {{ t.id_ticket }}"
+        data-id="{{ t.id_ticket }}" onclick="verTicketBtn(this)">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-eye"/></svg>
+      </button>
       {% if not t.estatus_usuario %}
-      {% if niveles.modificar %}
-      <button class="ab ab-edit" title="Editar"
-        data-id="{{ t.id_ticket }}" onclick="editarTicketBtn(this)">✏️</button>
-      <button class="ab ab-check" title="Cerrar y enviar a T.I"
-        data-id="{{ t.id_ticket }}" onclick="cerrarTicketBtn(this)">✔</button>
+        {% if niveles.modificar %}
+        <button class="ab ab-edit" title="Editar" aria-label="Editar el ticket {{ t.id_ticket }}"
+          data-id="{{ t.id_ticket }}" onclick="editarTicketBtn(this)">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-edit"/></svg>
+        </button>
+        <button class="ab ab-check" title="Cerrar y enviar a T.I" aria-label="Cerrar y enviar a T.I el ticket {{ t.id_ticket }}"
+          data-id="{{ t.id_ticket }}" onclick="cerrarTicketBtn(this)">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-send"/></svg>
+        </button>
+        {% else %}
+        <button type="button" class="ab ab-edit btn-bloqueado" data-tip="Sin permiso para modificar" aria-label="Editar (sin permiso)">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-edit"/></svg>
+        </button>
+        <button type="button" class="ab ab-check btn-bloqueado" data-tip="Sin permiso para modificar" aria-label="Cerrar y enviar (sin permiso)">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-send"/></svg>
+        </button>
+        {% endif %}
       {% else %}
-      <button type="button" class="ab ab-edit btn-bloqueado">✏️</button>
-      <button type="button" class="ab ab-check btn-bloqueado">✔</button>
-      {% endif %}
-      {% else %}
-      <span class="sbadge sb-finalizado" style="font-size:.65rem;padding:3px 8px">Enviado</span>
+      <span class="sbadge sb-finalizado">Enviado</span>
       {% endif %}
     </div>
   </td>
 </tr>
 {% empty %}
-<tr>
-  <td colspan="8">
+<tr class="is-empty">
+  <td colspan="9">
     <div class="empty-state">
-      <div class="empty-icon"></div>
-      <div class="empty-txt">
-        No hay tickets registrados.<br>
-        Crea el primero con <strong>Nuevo Ticket</strong>.
-      </div>
+      <div class="empty-icon"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-inbox"/></svg></div>
+      <div class="empty-title">Aún no hay tickets</div>
+      <p class="empty-txt">
+        Cuando levantes un reporte aparecerá aquí con su folio, su estatus y a quién está dirigido.
+      </p>
+      {% if niveles.crear %}
+      <button class="btn-primary" onclick="abrirModalNuevo()">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Crear el primer ticket
+      </button>
+      {% endif %}
     </div>
   </td>
 </tr>

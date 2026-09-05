@@ -1,0 +1,252 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>{% block titulo %}T.I Sistema{% endblock %} — T.I Sistema</title>
+
+  {# El tema se aplica antes del primer pintado para evitar el destello #}
+  <script src="{% static 'js/theme.js' %}?v=3"></script>
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6fe0'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='8' y='8' width='16' height='7' rx='1.5'/%3E%3Crect x='8' y='18' width='16' height='7' rx='1.5'/%3E%3Cpath d='M11.5 11.5h.01M11.5 21.5h.01'/%3E%3C/g%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{# ─────────── Sprite de iconos (Lucide) ─────────── #}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="i-base" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></g>
+  </defs>
+  <symbol id="ic-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+  <symbol id="ic-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+  <symbol id="ic-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></symbol>
+  <symbol id="ic-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="ic-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/></symbol>
+  <symbol id="ic-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/></symbol>
+  <symbol id="ic-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+  <symbol id="ic-drive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><path d="M6 16h.01M10 16h.01"/></symbol>
+  <symbol id="ic-cpu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+  <symbol id="ic-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/></symbol>
+  <symbol id="ic-laptop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+  <symbol id="ic-projector" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h20"/><path d="M21 3v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3"/><path d="m7 21 5-5 5 5"/></symbol>
+  <symbol id="ic-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01M12 6h.01M12 10h.01M12 14h.01"/></symbol>
+  <symbol id="ic-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="ic-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="ic-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M7 7h.01"/></symbol>
+  <symbol id="ic-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="ic-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="ic-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="ic-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="ic-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></symbol>
+  <symbol id="ic-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="ic-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="ic-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></symbol>
+  <symbol id="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="ic-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+  <symbol id="ic-print" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></symbol>
+  <symbol id="ic-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+  <symbol id="ic-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="ic-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="ic-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="ic-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="ic-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="ic-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="ic-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="ic-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.8 10A10 10 0 1 1 17 3.34"/><path d="m9 11 3 3L22 4"/></symbol>
+  <symbol id="ic-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+  <symbol id="ic-more" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="ic-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="ic-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="ic-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></symbol>
+  <symbol id="ic-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+</svg>
+
+<a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+{% with ruta=request.resolver_match.url_name rol=request.session.usuario_rol_id recurso=request.resolver_match.kwargs.recurso %}
+<div class="app-layout">
+  <div class="sidebar-overlay" aria-hidden="true"></div>
+
+  {# ═══════════════ SIDEBAR ═══════════════ #}
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="s-icon"><svg class="icon" aria-hidden="true"><use href="#ic-server"/></svg></div>
+      <div>
+        <div class="s-name">T.I SISTEMA</div>
+        <div class="s-sub">Soporte y servicios</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Navegación principal">
+      {% if rol == 'ti1' %}
+        <div class="nav-section-title">General</div>
+        <a href="{% url 'dashboard' %}" class="nav-item{% if ruta == 'dashboard' %} active{% endif %}" data-label="Inicio">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-dashboard"/></svg></span><span>Inicio</span>
+        </a>
+
+        <div class="nav-section-title">Soporte T.I</div>
+        <a href="{% url 'tickets_lista' %}" class="nav-item{% if ruta == 'tickets_lista' %} active{% endif %}" data-label="Tickets">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-ticket"/></svg></span><span>Tickets</span>
+        </a>
+        <a href="{% url 'tickets_seguimiento' %}" class="nav-item{% if ruta == 'tickets_seguimiento' %} active{% endif %}" data-label="Seguimiento">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-clipboard"/></svg></span><span>Seguimiento</span>
+        </a>
+        <a href="{% url 'equipos_lista' %}" class="nav-item{% if ruta == 'equipos_lista' or ruta == 'equipo_nuevo' or ruta == 'equipo_editar' %} active{% endif %}" data-label="Equipos">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-monitor"/></svg></span><span>Equipos</span>
+        </a>
+
+        <div class="nav-section-title">Servicios</div>
+        <a href="{% url 'mantenimientos_lista' %}" class="nav-item{% if ruta == 'mantenimientos_lista' %} active{% endif %}" data-label="Mantenimientos">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-wrench"/></svg></span><span>Mantenimientos</span>
+        </a>
+        <a href="{% url 'respaldos_lista' %}" class="nav-item{% if ruta == 'respaldos_lista' %} active{% endif %}" data-label="Respaldos">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-drive"/></svg></span><span>Respaldos</span>
+        </a>
+        <a href="{% url 'cambios_pieza_lista' %}" class="nav-item{% if ruta == 'cambios_pieza_lista' %} active{% endif %}" data-label="Cambios de pieza">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-cpu"/></svg></span><span>Cambios de Pieza</span>
+        </a>
+        <a href="{% url 'reporte_actividades' %}" class="nav-item{% if ruta == 'reporte_actividades' %} active{% endif %}" data-label="Reporte de actividades">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-file"/></svg></span><span>Reporte de Actividades</span>
+        </a>
+        <a href="{% url 'historial_mi_equipo' %}" class="nav-item{% if ruta == 'historial_mi_equipo' %} active{% endif %}" data-label="Historial de mi equipo">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-laptop"/></svg></span><span>Historial de mi Equipo</span>
+        </a>
+
+        <div class="nav-section-title">Reservaciones</div>
+        <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item{% if ruta == 'reservaciones' and recurso == 'proyector' %} active{% endif %}" data-label="Apartar proyector">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-projector"/></svg></span><span>Apartar Proyector</span>
+        </a>
+        <a href="{% url 'reservaciones' 'sala' %}" class="nav-item{% if ruta == 'reservaciones' and recurso == 'sala' %} active{% endif %}" data-label="Sala de juntas">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-building"/></svg></span><span>Sala de Juntas</span>
+        </a>
+
+        <div class="nav-section-title">Administración</div>
+        <a href="{% url 'usuarios_lista' %}" class="nav-item{% if ruta == 'usuarios_lista' %} active{% endif %}" data-label="Usuarios">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-users"/></svg></span><span>Usuarios</span>
+        </a>
+        <a href="{% url 'configuracion' %}" class="nav-item{% if ruta == 'configuracion' %} active{% endif %}" data-label="Configuración">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-settings"/></svg></span><span>Configuración</span>
+        </a>
+        <a href="{% url 'puestos_lista' %}" class="nav-item{% if ruta == 'puestos_lista' %} active{% endif %}" data-label="Puestos">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-tag"/></svg></span><span>Puestos</span>
+        </a>
+      {% else %}
+        <div class="nav-section-title">General</div>
+        <a href="{% url 'tickets_lista' %}" class="nav-item{% if ruta == 'tickets_lista' %} active{% endif %}" data-label="Mis tickets">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-ticket"/></svg></span><span>Gestión de Tickets</span>
+        </a>
+        <a href="{% url 'tickets_seguimiento' %}" class="nav-item{% if ruta == 'tickets_seguimiento' %} active{% endif %}" data-label="Seguimiento">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-clipboard"/></svg></span><span>Seguimiento de Tickets</span>
+        </a>
+
+        <div class="nav-section-title">Servicios</div>
+        <a href="{% url 'historial_mi_equipo' %}" class="nav-item{% if ruta == 'historial_mi_equipo' %} active{% endif %}" data-label="Historial de mi equipo">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-laptop"/></svg></span><span>Historial de mi Equipo</span>
+        </a>
+
+        <div class="nav-section-title">Reservaciones</div>
+        <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item{% if ruta == 'reservaciones' and recurso == 'proyector' %} active{% endif %}" data-label="Apartar proyector">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-projector"/></svg></span><span>Apartar Proyector</span>
+        </a>
+        <a href="{% url 'reservaciones' 'sala' %}" class="nav-item{% if ruta == 'reservaciones' and recurso == 'sala' %} active{% endif %}" data-label="Sala de juntas">
+          <span class="n-icon"><svg class="icon" aria-hidden="true"><use href="#ic-building"/></svg></span><span>Sala de Juntas</span>
+        </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" aria-hidden="true">{{ request.session.usuario_nombre|first|upper }}</div>
+        <div class="user-details">
+          <div class="u-name">{{ request.session.usuario_nombre }} {{ request.session.usuario_paterno }}</div>
+          <div class="u-role">{{ request.session.usuario_area|default:"Sin área asignada" }}</div>
+        </div>
+      </div>
+      <a href="{% url 'logout' %}" class="btn-logout">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-logout"/></svg><span>Cerrar sesión</span>
+      </a>
+    </div>
+  </aside>
+
+  {# ═══════════════ CONTENIDO ═══════════════ #}
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="Mostrar u ocultar el menú" aria-expanded="false" aria-controls="sidebar">
+          <svg class="icon icon-lg" aria-hidden="true"><use href="#ic-menu"/></svg>
+        </button>
+        <h1 class="topbar-title">{% block encabezado %}{% endblock %}</h1>
+      </div>
+
+      <div class="topbar-right">
+        {% block topbar_extra %}{% endblock %}
+        <span class="role-tag badge-neutral">{{ request.session.usuario_area|default:"Sin área" }}</span>
+
+        <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTema()" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
+          <svg class="icon ico-sun" aria-hidden="true"><use href="#ic-sun"/></svg>
+          <svg class="icon ico-moon" aria-hidden="true"><use href="#ic-moon"/></svg>
+        </button>
+
+        <div class="notif-bell-wrap">
+          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()" aria-label="Notificaciones" aria-haspopup="true" aria-expanded="false">
+            <svg class="icon" aria-hidden="true"><use href="#ic-bell"/></svg>
+            <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+          </button>
+          <div class="notif-panel" id="notifPanel" role="dialog" aria-label="Notificaciones">
+            <div class="notif-panel-head">
+              <span>Notificaciones</span>
+              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
+            </div>
+            <div class="notif-panel-list" id="notifList">
+              <div class="notif-empty">Sin notificaciones</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-body" id="contenido">
+      {% block mensajes %}
+        {% if messages %}
+          {% for msg in messages %}
+            {% if msg.tags == 'error' %}
+              <div class="notif-err" data-toast role="alert">
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg>{{ msg }}
+              </div>
+            {% else %}
+              <div class="notif-ok" data-toast role="status">
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-check-circle"/></svg>{{ msg }}
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+      {% endblock %}
+
+      {# Las pantallas que dependen de un nivel de acceso definen este bloque #}
+      {% block sin_acceso %}{% endblock %}
+
+      {% block contenido %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endwith %}
+
+{% block fuera_layout %}{% endblock %}
+
+<div id="toastHost" role="status" aria-live="polite"></div>
+
+<script src="{% static 'js/app.js' %}?v=3"></script>
+<script src="{% static 'js/sidebar.js' %}?v=3"></script>
+<script src="{% static 'js/notificaciones.js' %}?v=3"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

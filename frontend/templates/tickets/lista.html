@@ -1,301 +1,115 @@
+{% extends "base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>T.I Sistema — Tickets</title>
-  <link rel="stylesheet" href="{% static 'css/style.css' %}">
-  <style>
-    .tk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
-    .tk-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:14px;transition:border-color .2s,box-shadow .2s}
-    .tk-stat:hover{border-color:var(--accent);box-shadow:var(--glow-sm)}
-    .tk-stat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
-    .tk-stat-val{font-size:1.5rem;font-weight:800;line-height:1}
-    .tk-stat-lbl{font-size:.7rem;color:var(--text-muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
-    .tk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-    .tk-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
-    .search-wrap{position:relative;flex:1;min-width:200px}
-    .search-wrap input{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px 9px 38px;color:var(--text);font-size:.87rem;outline:none;transition:border .2s;box-sizing:border-box}
-    .search-wrap input:focus{border-color:var(--accent)}
-    .search-wrap input::placeholder{color:var(--text-muted)}
-    .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.9rem;pointer-events:none}
-    .tk-select{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--text);font-size:.87rem;outline:none;cursor:pointer;transition:border .2s;appearance:none;-webkit-appearance:none;color-scheme:dark}
-    .tk-select:focus{border-color:var(--accent)}
-    .btn-nuevo{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 4px 15px rgba(0,112,243,.4);transition:opacity .2s,transform .1s}
-    .btn-nuevo:hover{opacity:.9;transform:translateY(-1px)}
-    .tbl-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
-    .tbl-wrap table{width:100%;border-collapse:collapse}
-    .tbl-wrap thead{background:linear-gradient(90deg,rgba(0,112,243,.1),rgba(0,212,255,.06));border-bottom:1px solid var(--border)}
-    .tbl-wrap th{padding:13px 16px;font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-muted);text-align:left;white-space:nowrap}
-    .tbl-wrap th.tc{text-align:center}
-    .tbl-wrap tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s}
-    .tbl-wrap tbody tr:hover{background:rgba(0,212,255,.04)}
-    .tbl-wrap tbody tr:last-child{border-bottom:none}
-    .tbl-wrap td{padding:12px 16px;font-size:.87rem;vertical-align:middle}
-    .tbl-wrap td.tc{text-align:center}
-    .tbl-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border);font-size:.8rem;color:var(--text-muted)}
-    .tk-id{font-family:monospace;font-size:.78rem;font-weight:800;color:var(--accent);background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.15);border-radius:6px;padding:3px 8px}
-    .area-badge{font-size:.78rem;color:var(--text-muted);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:3px 9px;display:inline-block;white-space:nowrap}
-    .tk-titulo{font-weight:600;font-size:.9rem;line-height:1.3}
-    .tk-desc{font-size:.78rem;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
-    .dirigido-wrap{display:flex;align-items:center;gap:7px}
-    .dir-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:#fff;flex-shrink:0}
-    .dir-name{font-size:.84rem}
-    .sbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.5px;white-space:nowrap}
-    .sb-pendiente{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
-    .sb-proceso{background:rgba(0,112,243,.12);color:#60a5fa;border:1px solid rgba(0,112,243,.3)}
-    .sb-finalizado{background:rgba(0,229,160,.1);color:#34d399;border:1px solid rgba(0,229,160,.3)}
-    .sb-cancelado{background:rgba(255,77,109,.08);color:#f87171;border:1px solid rgba(255,77,109,.2)}
-    .fecha-cell{font-size:.78rem;color:var(--text-muted);white-space:nowrap}
-    .actions{display:flex;gap:5px;align-items:center;justify-content:center}
-    .ab{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;font-size:.82rem;cursor:pointer;border:1px solid transparent;transition:background .15s,transform .1s}
-    .ab:hover{transform:scale(1.08)}
-    .ab-view{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.2)}
-    .ab-edit{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.2)}
-    .ab-check{background:rgba(0,229,160,.1);border-color:rgba(0,229,160,.25)}
-    .ab-view:hover{background:rgba(0,212,255,.2)}
-    .ab-edit:hover{background:rgba(251,191,36,.2)}
-    .ab-check:hover{background:rgba(0,229,160,.2)}
-    .notif-ok{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:10px;padding:13px 18px;margin-bottom:16px;color:#34d399;font-size:.88rem;font-weight:600}
-    .notif-err{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:13px 18px;margin-bottom:16px;color:#f87171;font-size:.88rem;font-weight:600}
-    .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(6px);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-    .confirm-overlay.open{opacity:1;pointer-events:all}
-    .confirm-box{background:var(--bg-card);border:1px solid rgba(255,77,109,.25);border-radius:20px;padding:36px 32px;max-width:380px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 30px rgba(255,77,109,.08);transform:scale(.93);transition:transform .2s}
-    .confirm-overlay.open .confirm-box{transform:scale(1)}
-    .confirm-icon{font-size:2.6rem;margin-bottom:14px}
-    .confirm-title{font-size:1.1rem;font-weight:800;margin-bottom:10px}
-    .confirm-msg{font-size:.85rem;color:var(--text-muted);line-height:1.65;margin-bottom:28px}
-    .confirm-msg strong{color:var(--text)}
-    .confirm-btns{display:flex;gap:12px;justify-content:center}
-    .btn-confirm-ok{padding:11px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;box-shadow:0 4px 15px rgba(239,68,68,.35);transition:opacity .2s}
-    .btn-confirm-ok:hover{opacity:.88}
-    .empty-state{display:flex;flex-direction:column;align-items:center;padding:56px 20px;gap:12px}
-    .empty-icon{font-size:2.4rem;opacity:.3}
-    .empty-txt{font-size:.85rem;color:var(--text-muted);text-align:center;line-height:1.7}
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:1000;display:flex;align-items:center;justify-content:center;gap:20px;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
-    .modal-overlay.open{opacity:1;pointer-events:all}
-    .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.6),var(--glow);transform:translateY(20px) scale(.97);transition:transform .25s;flex-shrink:0}
-    .modal-overlay.open .modal{transform:translateY(0) scale(1)}
-    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);z-index:2}
-    .modal-header h2{font-size:1.05rem;font-weight:700}
-    .modal-close{width:34px;height:34px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:background .15s}
-    .modal-close:hover{background:rgba(255,77,109,.15);color:var(--danger)}
-    .modal-body{padding:24px 28px}
-    .modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:18px 28px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg-card)}
-    .btn-cancel{padding:10px 20px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:.9rem;cursor:pointer;transition:background .15s}
-    .btn-cancel:hover{background:rgba(255,255,255,.09)}
-    .btn-save{padding:10px 24px;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:10px;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:0 4px 15px rgba(0,112,243,.35)}
-    .m-section{margin-bottom:22px}
-    .m-section-title{font-size:.7rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid var(--border)}
-    .m-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-    .m-field{display:flex;flex-direction:column;gap:7px}
-    .m-field.full{grid-column:1/-1}
-    .m-field label{font-size:.7rem;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)}
-    .req{color:var(--danger)}
-    .m-field input,.m-field textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none;font-family:inherit;transition:border .2s;resize:vertical}
-    .m-field input:focus,.m-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
-    .m-field input::placeholder,.m-field textarea::placeholder{color:var(--text-muted)}
-    .m-field input.error,.m-field textarea.error{border-color:var(--danger)!important}
-    .val-alert{display:none;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:10px;padding:14px 16px;margin-bottom:20px}
-    .val-alert.show{display:block}
-    .val-alert-title{color:#f87171;font-size:.85rem;font-weight:700;margin-bottom:8px}
-    .val-alert ul{list-style:none;padding:0;margin:0}
-    .val-alert ul li{font-size:.82rem;color:#fca5a5;padding:2px 0}
-    .val-alert ul li::before{content:"→ ";color:#f87171}
-    .csel{position:relative;width:100%}
-    .csel-trigger{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;cursor:pointer;user-select:none;transition:border .2s}
-    .csel.open .csel-trigger{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
-    .csel.error .csel-trigger{border-color:var(--danger)!important}
-    .csel-placeholder{color:var(--text-muted)}
-    .csel-arrow{font-size:.72rem;color:var(--text-muted);transition:transform .2s}
-    .csel.open .csel-arrow{transform:rotate(180deg)}
-    .csel-dropdown{position:absolute;top:calc(100% + 5px);left:0;right:0;background:#111827;border:1px solid rgba(0,212,255,.2);border-radius:10px;overflow-y:auto;max-height:200px;z-index:9999;box-shadow:0 12px 30px rgba(0,0,0,.5);display:none}
-    .csel-dropdown::-webkit-scrollbar{width:4px}
-    .csel-dropdown::-webkit-scrollbar-thumb{background:rgba(0,212,255,.2);border-radius:4px}
-    .csel.open .csel-dropdown{display:block}
-    .csel-option{padding:10px 14px;font-size:.88rem;cursor:pointer;color:var(--text-muted);transition:background .12s}
-    .csel-option:hover{background:rgba(0,212,255,.1);color:var(--text)}
-    .csel-option.selected{background:rgba(0,112,243,.2);color:var(--accent);font-weight:600}
-    .csel-option.placeholder-opt{font-style:italic}
-    .modal-ver .m-field input,.modal-ver .m-field textarea{opacity:.6;pointer-events:none}
-    .modal-ver .csel-trigger{opacity:.6;pointer-events:none}
-    .csel.locked .csel-trigger{opacity:.6;pointer-events:none;background:rgba(255,255,255,.03)}
-    .modal-ver .btn-save{display:none!important}
-    .overlay-ver .foto-big-clear{display:none!important}
-    .overlay-ver .foto-big-label{pointer-events:none;cursor:default}
-    .modal-ver-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:4px 12px;font-size:.72rem;color:var(--accent);font-weight:700;letter-spacing:.8px;margin-left:10px}
-    .foto-input{display:none}
-    .fotos-panel{width:580px;flex-shrink:0;opacity:0;transform:translateX(16px);transition:opacity .3s,transform .3s;pointer-events:none}
-    .modal-overlay.open .fotos-panel{opacity:1;transform:translateX(0);pointer-events:all}
-    .fotos-panel-title{font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
-    .fotos-panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .foto-big-cell{position:relative;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.04);border:2px dashed rgba(255,255,255,.1);height:340px;transition:border-color .2s,box-shadow .2s}
-    .foto-big-cell.loaded{border-color:var(--accent);border-style:solid;box-shadow:0 0 14px rgba(0,212,255,.18)}
-    .foto-big-label{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;cursor:pointer;gap:6px;text-align:center}
-    .foto-big-label .no-foto{font-size:1.8rem;opacity:.18;pointer-events:none;line-height:1.4;color:var(--text-muted)}
-    .foto-big-label .no-foto small{font-size:.68rem;display:block;opacity:.7}
-    .foto-big-cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0a0f1a;display:none;cursor:zoom-in}
-    .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:none;align-items:center;justify-content:center}
-    .lb-overlay.open{display:flex}
-    .lb-overlay img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:10px;box-shadow:0 0 60px rgba(0,0,0,.8)}
-    .lb-close{position:fixed;top:20px;right:24px;width:38px;height:38px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:50%;cursor:pointer;font-size:1.1rem;color:#fff;display:flex;align-items:center;justify-content:center;transition:background .15s}
-    .lb-close:hover{background:rgba(255,77,109,.4)}
-    .foto-big-clear{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(255,77,109,.9);border:none;color:#fff;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:3;line-height:1}
-    .foto-big-cell.loaded .foto-big-clear{display:flex}
-    .foto-big-cell.loaded .foto-big-label{display:none}
-  </style>
-</head>
-<body>
-<div class="app-layout">
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <div class="s-icon">⚙️</div>
-      <div><div class="s-name">T.I SISTEMA</div><div class="s-sub">Panel de Control</div></div>
-    </div>
-    <nav class="sidebar-nav">
-      {% if rol_id == 'ti1' %}
-      <div class="nav-section-title">General</div>
-      <a href="{% url 'dashboard' %}" class="nav-item"><span class="n-icon">🏠</span> Inicio</a>
-      <a href="#" class="nav-item"><span class="n-icon">📊</span> Reportes</a>
-      <div class="nav-section-title">Soporte T.I</div>
-      <a href="{% url 'equipos_lista' %}" class="nav-item"><span class="n-icon">🖥️</span> Equipos</a>
-      <a href="#" class="nav-item"><span class="n-icon">🔧</span> Mantenimiento</a>
-      <a href="{% url 'tickets_lista' %}" class="nav-item active"><span class="n-icon">🎫</span> Tickets</a>
-      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
-      <div class="nav-section-title">Reservaciones</div>
-      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
-      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
-      <div class="nav-section-title">Administración</div>
-      <a href="{% url 'usuarios_lista' %}" class="nav-item"><span class="n-icon">👥</span> Usuarios</a>
-      <a href="{% url 'configuracion' %}" class="nav-item"><span class="n-icon">⚙️</span> Configuración</a>
-      {% else %}
-      <div class="nav-section-title">General</div>
-      <a href="{% url 'tickets_lista' %}" class="nav-item active"><span class="n-icon">🎫</span> Gestión de Tickets</a>
-      <a href="{% url 'tickets_seguimiento' %}" class="nav-item"><span class="n-icon">📋</span> Seguimiento de Tickets</a>
-      <div class="nav-section-title">Reservaciones</div>
-      <a href="{% url 'reservaciones' 'proyector' %}" class="nav-item"><span class="n-icon">📽️</span> Apartar Proyector</a>
-      <a href="{% url 'reservaciones' 'sala' %}" class="nav-item"><span class="n-icon">🏢</span> Sala de Juntas</a>
-      {% endif %}
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-info">
-        <div class="user-avatar">{{ username|first|upper }}</div>
-        <div class="user-details">
-          <div class="u-name">{{ nombre }} {{ apellido }}</div>
-          <div class="u-role">{{ usuario_area|default:"Sin área asignada" }}</div>
-        </div>
-      </div>
-      <a href="{% url 'logout' %}" class="btn-logout"><span></span> Cerrar sesión</a>
-    </div>
-  </aside>
-  <div class="main-content">
-    <header class="topbar">
-      <span class="topbar-title">Gestión de Tickets</span>
-      <div class="topbar-right">
-        <span class="topbar-time" id="clock">--:--:--</span>
-        <span class="role-tag role-usuario">{{ usuario_area|default:"Sin área asignada" }}</span>
-        <div class="notif-bell-wrap">
-          <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
-          <div class="notif-panel" id="notifPanel">
-            <div class="notif-panel-head">
-              <span>Notificaciones</span>
-              <button class="notif-marcar-todas" onclick="marcarTodasLeidas()">Marcar todas como leídas</button>
-            </div>
-            <div class="notif-panel-list" id="notifList">
-              <div class="notif-empty">Sin notificaciones</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-    <div class="page-body">
-      {% if not niveles.consultar %}
-      <style>.page-body > *:not(.aviso-sin-acceso){display:none !important}</style>
-      <div class="aviso-sin-acceso" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:90px 20px;text-align:center">
-        <div style="font-size:2.8rem;opacity:.35">🔒</div>
-        <div style="color:#94a3b8;font-size:1.02rem;font-weight:600">Sin nivel de acceso para consultar esta información.</div>
-      </div>
-      {% endif %}
-      {% if messages %}
-        {% for msg in messages %}
-          {% if msg.tags == 'error' %}<div class="notif-err">⚠ {{ msg }}</div>
-          {% else %}<div class="notif-ok">✅ {{ msg }}</div>{% endif %}
-        {% endfor %}
-      {% endif %}
-      <div class="tk-stats">
-        <div class="tk-stat">
-          <div class="tk-stat-icon" style="background:rgba(0,112,243,.12)">🎫</div>
-          <div><div class="tk-stat-val">{{ stats.total }}</div><div class="tk-stat-lbl">Total</div></div>
-        </div>
-        <div class="tk-stat">
-          <div class="tk-stat-icon" style="background:rgba(251,191,36,.12)">⏳</div>
-          <div><div class="tk-stat-val">{{ stats.pendiente }}</div><div class="tk-stat-lbl">Pendientes</div></div>
-        </div>
-        <div class="tk-stat">
-          <div class="tk-stat-icon" style="background:rgba(0,112,243,.12)">🔄</div>
-          <div><div class="tk-stat-val">{{ stats.proceso }}</div><div class="tk-stat-lbl">En Proceso</div></div>
-        </div>
-        <div class="tk-stat">
-          <div class="tk-stat-icon" style="background:rgba(0,229,160,.1)">✅</div>
-          <div><div class="tk-stat-val">{{ stats.finalizado }}</div><div class="tk-stat-lbl">Finalizados</div></div>
-        </div>
-      </div>
-      <div class="tk-toolbar">
-        <div class="tk-filters">
-          <div class="search-wrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="Buscar por título, ID, área...">
-          </div>
-          <select class="tk-select" id="filterEstatus">
-            <option value="">Todos los estatus</option>
-            <option value="PEN">Pendiente</option>
-            <option value="PRO">En Proceso</option>
-            <option value="FIN">Finalizado</option>
-          </select>
-        </div>
-        {% if niveles.crear %}
-        <button class="btn-nuevo" onclick="abrirModalNuevo()">＋ Nuevo Ticket</button>
-        {% else %}
-        <button type="button" class="btn-nuevo btn-bloqueado">＋ Nuevo Ticket</button>
-        {% endif %}
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Ticket</th>
-              <th>Área</th>
-              <th>Título / Descripción</th>
-              <th>Dirigido a</th>
-              <th>Creado por</th>
-              <th class="tc">Estatus</th>
-              <th class="tc">Ticket</th>
-              <th>Fecha</th>
-              <th class="tc">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="ticketsTbody">
-            {% include 'tickets/_filas.html' %}
-          </tbody>
-        </table>
-        <div class="tbl-footer">
-          <span>Mostrando <strong id="contadorReg">{{ tickets|length }}</strong> tickets</span>
-          <span>Total: {{ stats.total }}</span>
-        </div>
-      </div>
-    </div>
+
+{% block titulo %}Tickets{% endblock %}
+{% block encabezado %}Gestión de Tickets{% endblock %}
+
+{% block sin_acceso %}
+  {% if not niveles.consultar %}
+  <div class="aviso-sin-acceso">
+    <div class="fc-icon"><svg class="icon icon-xl" aria-hidden="true"><use href="#ic-lock"/></svg></div>
+    <div class="fc-title">No tienes acceso a este módulo</div>
+    <p class="fc-hint">
+      Tu nivel de acceso actual no incluye el permiso de <strong>consulta</strong> para esta pantalla.
+      Solicítalo al administrador del sistema desde Configuración &rsaquo; Niveles.
+    </p>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% if niveles.consultar %}
+<div class="section-header">
+  <div>
+    <h2 class="section-title">Gestión de tickets</h2>
+    <p class="section-sub">Levanta reportes al área de T.I y sigue su avance hasta el cierre.</p>
   </div>
 </div>
+
+<div class="tk-stats">
+  <div class="tk-stat">
+    <div class="tk-stat-icon ic-cyan"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-ticket"/></svg></div>
+    <div><div class="tk-stat-val">{{ stats.total }}</div><div class="tk-stat-lbl">Total</div></div>
+  </div>
+  <div class="tk-stat">
+    <div class="tk-stat-icon ic-yellow"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-clock"/></svg></div>
+    <div><div class="tk-stat-val">{{ stats.pendiente }}</div><div class="tk-stat-lbl">Pendientes</div></div>
+  </div>
+  <div class="tk-stat">
+    <div class="tk-stat-icon ic-blue"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-refresh"/></svg></div>
+    <div><div class="tk-stat-val">{{ stats.proceso }}</div><div class="tk-stat-lbl">En proceso</div></div>
+  </div>
+  <div class="tk-stat">
+    <div class="tk-stat-icon ic-green"><svg class="icon icon-lg" aria-hidden="true"><use href="#ic-check-circle"/></svg></div>
+    <div><div class="tk-stat-val">{{ stats.finalizado }}</div><div class="tk-stat-lbl">Finalizados</div></div>
+  </div>
+</div>
+
+<div class="tk-toolbar">
+  <div class="tk-filters">
+    <div class="search-wrap">
+      <span class="search-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-search"/></svg></span>
+      <label class="sr-only" for="searchInput">Buscar tickets</label>
+      <input type="search" id="searchInput" placeholder="Buscar por título, folio o área...">
+    </div>
+    <label class="sr-only" for="filterEstatus">Filtrar por estatus</label>
+    <select class="tk-select" id="filterEstatus">
+      <option value="">Todos los estatus</option>
+      <option value="PEN">Pendiente</option>
+      <option value="PRO">En proceso</option>
+      <option value="FIN">Finalizado</option>
+    </select>
+  </div>
+  {% if niveles.crear %}
+  <button class="btn-nuevo" onclick="abrirModalNuevo()">
+    <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Nuevo ticket
+  </button>
+  {% else %}
+  <button type="button" class="btn-nuevo btn-bloqueado" data-tip="Tu nivel de acceso no permite crear tickets">
+    <svg class="icon icon-sm" aria-hidden="true"><use href="#ic-plus"/></svg> Nuevo ticket
+  </button>
+  {% endif %}
+</div>
+
+<div class="tbl-wrap tbl-cards">
+  <div class="tbl-scroll">
+    <table>
+      <caption class="sr-only">Listado de tickets levantados</caption>
+      <thead>
+        <tr>
+          <th data-sort="texto">Folio</th>
+          <th data-sort="texto">Área</th>
+          <th data-sort="texto">Asunto</th>
+          <th data-sort="texto">Dirigido a</th>
+          <th data-sort="texto">Creado por</th>
+          <th class="tc" data-sort="texto">Estatus</th>
+          <th class="tc">Envío a T.I</th>
+          <th data-sort="fecha">Fecha</th>
+          <th class="tc">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="ticketsTbody">
+        {% include 'tickets/_filas.html' %}
+      </tbody>
+    </table>
+  </div>
+  <div class="tbl-footer">
+    <span>Mostrando <strong id="contadorReg">{{ tickets|length }}</strong> de {{ stats.total }} tickets</span>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block fuera_layout %}
 <div class="modal-overlay" id="modalOverlay" onclick="cerrarFuera(event)">
-  <div class="modal" id="modal">
+  <div class="modal modal-md" id="modal">
     <div class="modal-header">
       <h2 id="modalTitulo">Nuevo Ticket</h2>
-      <button class="modal-close" onclick="cerrarModal()">✕</button>
+      <button class="modal-close" onclick="cerrarModal()" aria-label="Cerrar" title="Cerrar"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="val-alert" id="valAlert">
-        <div class="val-alert-title">⚠ Faltan los siguientes campos obligatorios:</div>
+        <div class="val-alert-title"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-alert"/></svg> Faltan los siguientes campos obligatorios:</div>
         <ul id="valList"></ul>
       </div>
       <form id="ticketForm" method="POST" enctype="multipart/form-data"
@@ -305,7 +119,7 @@
         <div class="m-section">
           <div class="m-section-title">Información del Ticket</div>
           <div class="m-grid">
-            <div class="m-field full">
+            <div class="m-field campo-ancho">
               <label>Título <span class="req">*</span></label>
               <input type="text" name="titulo" id="fTitulo"
                      placeholder="Describe brevemente el problema..." maxlength="200"
@@ -316,7 +130,7 @@
               <div class="csel" id="cselArea">
                 <div class="csel-trigger" onclick="toggleCsel('cselArea')">
                   <span class="csel-val csel-placeholder">— Selecciona —</span>
-                  <span class="csel-arrow">▾</span>
+                  <span class="csel-arrow"></span>
                 </div>
                 <div class="csel-dropdown">
                   <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
@@ -343,7 +157,7 @@
               <div class="csel" id="cselDirigido">
                 <div class="csel-trigger" onclick="toggleCsel('cselDirigido')">
                   <span class="csel-val csel-placeholder">— Selecciona —</span>
-                  <span class="csel-arrow">▾</span>
+                  <span class="csel-arrow"></span>
                 </div>
                 <div class="csel-dropdown">
                   <div class="csel-option placeholder-opt" data-value="">— Selecciona —</div>
@@ -357,12 +171,12 @@
         <div class="m-section">
           <div class="m-section-title">Equipo de Cómputo</div>
           <div class="m-grid">
-            <div class="m-field full">
+            <div class="m-field campo-ancho">
               <label>Equipo <span class="req">*</span></label>
               <div class="csel" id="cselEquipo">
                 <div class="csel-trigger" onclick="toggleCsel('cselEquipo')">
                   <span class="csel-val csel-placeholder">— Selecciona un equipo —</span>
-                  <span class="csel-arrow">▾</span>
+                  <span class="csel-arrow"></span>
                 </div>
                 <div class="csel-dropdown">
                   <div class="csel-option placeholder-opt" data-value="" data-nombre="">— Selecciona un equipo —</div>
@@ -386,7 +200,7 @@
                         oninput="this.value=this.value.toUpperCase()"></textarea>
             </div>
             <div class="m-field full">
-              <label>Observaciones <span style="font-size:.68rem;color:var(--text-muted)">(opcional)</span></label>
+              <label>Observaciones <span class="txt-caption">(opcional)</span></label>
               <textarea name="observaciones" id="fObservaciones" rows="3"
                         placeholder="Información adicional, acceso, horario disponible..."
                         oninput="this.value=this.value.toUpperCase()"></textarea>
@@ -412,27 +226,27 @@
     </div>
   </div>
   <div class="fotos-panel" id="fotosPanel">
-    <div class="fotos-panel-title">Fotos del Problema <span style="font-size:.65rem;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(máx. 4, opcional)</span></div>
+    <div class="fotos-panel-title">Fotos del Problema <span class="txt-opcional">(máx. 4, opcional)</span></div>
     <div class="fotos-panel-grid {% if not niveles.importar %}btn-bloqueado{% endif %}">
       <div class="foto-big-cell" id="cell1">
-        <label class="foto-big-label" for="foto1Input"><span class="no-foto">📷<br><small>Foto 1</small></span></label>
+        <label class="foto-big-label" for="foto1Input"><span class="no-foto"><svg class="icon" aria-hidden="true"><use href="#ic-camera"/></svg><small>Foto 1</small></span></label>
         <img id="prevBig1" alt="">
-        <button type="button" class="foto-big-clear" onclick="limpiarFoto(1)">✕</button>
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(1)" aria-label="Quitar la foto" title="Quitar la foto"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>
       </div>
       <div class="foto-big-cell" id="cell2">
-        <label class="foto-big-label" for="foto2Input"><span class="no-foto">📷<br><small>Foto 2</small></span></label>
+        <label class="foto-big-label" for="foto2Input"><span class="no-foto"><svg class="icon" aria-hidden="true"><use href="#ic-camera"/></svg><small>Foto 2</small></span></label>
         <img id="prevBig2" alt="">
-        <button type="button" class="foto-big-clear" onclick="limpiarFoto(2)">✕</button>
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(2)" aria-label="Quitar la foto" title="Quitar la foto"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>
       </div>
       <div class="foto-big-cell" id="cell3">
-        <label class="foto-big-label" for="foto3Input"><span class="no-foto">📷<br><small>Foto 3</small></span></label>
+        <label class="foto-big-label" for="foto3Input"><span class="no-foto"><svg class="icon" aria-hidden="true"><use href="#ic-camera"/></svg><small>Foto 3</small></span></label>
         <img id="prevBig3" alt="">
-        <button type="button" class="foto-big-clear" onclick="limpiarFoto(3)">✕</button>
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(3)" aria-label="Quitar la foto" title="Quitar la foto"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>
       </div>
       <div class="foto-big-cell" id="cell4">
-        <label class="foto-big-label" for="foto4Input"><span class="no-foto">📷<br><small>Foto 4</small></span></label>
+        <label class="foto-big-label" for="foto4Input"><span class="no-foto"><svg class="icon" aria-hidden="true"><use href="#ic-camera"/></svg><small>Foto 4</small></span></label>
         <img id="prevBig4" alt="">
-        <button type="button" class="foto-big-clear" onclick="limpiarFoto(4)">✕</button>
+        <button type="button" class="foto-big-clear" onclick="limpiarFoto(4)" aria-label="Quitar la foto" title="Quitar la foto"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>
       </div>
     </div>
   </div>
@@ -448,57 +262,13 @@
   </div>
 </div>
 <div class="lb-overlay" id="lbOverlay" onclick="cerrarLb()">
-  <button class="lb-close" onclick="cerrarLb()">✕</button>
+  <button class="lb-close" onclick="cerrarLb()" aria-label="Cerrar la imagen" title="Cerrar la imagen"><svg class="icon icon-sm" aria-hidden="true"><use href="#ic-x"/></svg></button>
   <img id="lbImg" src="" alt="">
 </div>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-  const elClk = document.getElementById('clock');
-  function tick(){ elClk.textContent = new Date().toLocaleTimeString('es-MX'); }
-  tick(); setInterval(tick, 1000);
-  function toggleCsel(id){
-    const el = document.getElementById(id);
-    const isOpen = el.classList.contains('open');
-    document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
-    if(!isOpen) el.classList.add('open');
-  }
-  function initCsel(id){
-    document.getElementById(id).querySelectorAll('.csel-option').forEach(opt=>{
-      opt.addEventListener('click', ()=>{
-        const csel = document.getElementById(id);
-        const val = opt.dataset.value;
-        csel.querySelector('.csel-val').textContent = opt.textContent;
-        csel.querySelector('.csel-val').classList.toggle('csel-placeholder', !val);
-        csel.querySelector('input[type=hidden]').value = val;
-        csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
-        opt.classList.add('selected');
-        csel.classList.remove('open','error');
-      });
-    });
-  }
-  function setCsel(id, value){
-    const csel = document.getElementById(id);
-    if(!csel) return;
-    const opt = csel.querySelector(`[data-value="${value}"]`);
-    if(!opt) return;
-    csel.querySelector('.csel-val').textContent = opt.textContent;
-    csel.querySelector('.csel-val').classList.remove('csel-placeholder');
-    csel.querySelector('input[type=hidden]').value = value;
-    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
-    opt.classList.add('selected');
-    csel.classList.remove('error');
-  }
-  function resetCsel(id){
-    const csel = document.getElementById(id);
-    if(!csel) return;
-    csel.querySelector('.csel-val').textContent = '— Selecciona —';
-    csel.querySelector('.csel-val').classList.add('csel-placeholder');
-    csel.querySelector('input[type=hidden]').value = '';
-    csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
-    csel.classList.remove('error','open');
-  }
-  document.addEventListener('click', e=>{
-    if(!e.target.closest('.csel')) document.querySelectorAll('.csel.open').forEach(c=>c.classList.remove('open'));
-  });
   ['cselArea','cselDirigido'].forEach(initCsel);
   document.getElementById('cselEquipo').querySelectorAll('.csel-option').forEach(opt=>{
     opt.addEventListener('click',()=>{
@@ -523,9 +293,6 @@
     csel.querySelectorAll('.csel-option').forEach(o=>o.classList.remove('selected'));
     csel.classList.remove('error','open');
   }
-  function abrirLb(src){ document.getElementById('lbImg').src=src; document.getElementById('lbOverlay').classList.add('open'); }
-  function cerrarLb(){ document.getElementById('lbOverlay').classList.remove('open'); }
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarLb(); });
   function previewFoto(input,n){
     const file=input.files[0];
     if(!file) return;
@@ -546,10 +313,8 @@
     document.getElementById('cell'+n).classList.remove('loaded');
   }
   function limpiarTodasFotos(){ [1,2,3,4].forEach(limpiarFoto); }
-  document.addEventListener('keydown', e=>{ if(e.key==='Escape') cerrarModal(); });
   function abrirModal(){
     document.getElementById('modalOverlay').classList.add('open');
-    document.body.style.overflow = 'hidden';
   }
   const USUARIO_AREA = "{{ usuario_area|escapejs }}";
   function abrirModalNuevo(){
@@ -565,7 +330,6 @@
   }
   function cerrarModal(){
     document.getElementById('modalOverlay').classList.remove('open');
-    document.body.style.overflow = '';
     const form = document.getElementById('ticketForm');
     form.action = form.dataset.crearUrl;
     document.getElementById('modalTitulo').textContent = 'Nuevo Ticket';
@@ -580,17 +344,17 @@
     resetCselEquipo();
     limpiarTodasFotos();
   }
+  /* Escape, clic fuera, foco y bloqueo del fondo los gestiona app.js
+     para todos los modales: un solo Escape cierra solo el modal activo. */
   function cerrarFuera(e){ if(e.target===document.getElementById('modalOverlay')) cerrarModal(); }
   const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
-  async function verTicketBtn(btn){
-    const d = await fetchDatos(btn.dataset.id);
-    if(!d) return;
-    poblarModal(d, true);
+  function verTicketBtn(btn){
+    abrirModalConDatos('modalOverlay', fetchDatos(btn.dataset.id),
+                       d => { if (d) poblarModal(d, true); });
   }
-  async function editarTicketBtn(btn){
-    const d = await fetchDatos(btn.dataset.id);
-    if(!d) return;
-    poblarModal(d, false);
+  function editarTicketBtn(btn){
+    abrirModalConDatos('modalOverlay', fetchDatos(btn.dataset.id),
+                       d => { if (d) poblarModal(d, false); });
   }
   let _idCerrar = null;
   function cerrarTicketBtn(btn){
@@ -603,15 +367,14 @@
   }
   document.getElementById('btnConfirmOk').addEventListener('click', async ()=>{
     if(!_idCerrar) return;
-    document.getElementById('btnConfirmOk').textContent = 'Enviando...';
-    document.getElementById('btnConfirmOk').disabled = true;
+    btnCargando(document.getElementById('btnConfirmOk'), true);
     await fetch(`/tickets/cerrar/${_idCerrar}/`, {method:'POST', headers:{'X-CSRFToken':CSRF}});
     location.reload();
   });
 
   async function fetchDatos(id){
     const res = await fetch(`/tickets/datos/${id}/`);
-    if(!res.ok){ alert('Error al cargar el ticket.'); return null; }
+    if(!res.ok) throw new Error('ticket ' + res.status);
     return res.json();
   }
 
@@ -674,10 +437,6 @@
     if(el) el.classList.add('error');
     lista.push(label);
   }
-  function marcarCselError(id, label, lista){
-    document.getElementById(id).classList.add('error');
-    lista.push(label);
-  }
   function validarYGuardar(){
     limpiarErrores();
     const errores = [];
@@ -693,6 +452,7 @@
       document.getElementById('modal').scrollTop = 0;
       return;
     }
+    document.querySelectorAll('.modal-overlay.open .btn-save, .modal-overlay.open .btn-guardar').forEach(function(b){ b.classList.add('is-loading'); });
     document.getElementById('ticketForm').submit();
   }
   const searchInput   = document.getElementById('searchInput');
@@ -714,25 +474,24 @@
   searchInput.addEventListener('input', filtrarTabla);
   filterEstatus.addEventListener('change', filtrarTabla);
 
+  let _htmlTickets = null;
   async function actualizarTickets(){
-    if(document.getElementById('modalOverlay').classList.contains('open')) return;
-    try{
-      const res = await fetch("{% url 'tickets_actualizacion' %}");
-      if(res.status === 403){ if(Number("{{ niveles.consultar|default:0 }}") === 1) location.reload(); return; }
-      if(res.ok && Number("{{ niveles.consultar|default:0 }}") === 0){ location.reload(); return; }
-      if(!res.ok) return;
-      const data = await res.json();
-      document.getElementById('ticketsTbody').innerHTML = data.tbody_html;
-      const vals = document.querySelectorAll('.tk-stat-val');
-      vals[0].textContent = data.stats.total;
-      vals[1].textContent = data.stats.pendiente;
-      vals[2].textContent = data.stats.proceso;
-      vals[3].textContent = data.stats.finalizado;
-      filtrarTabla();
-    }catch(e){ }
+    const res = await fetch("{% url 'tickets_actualizacion' %}");
+    if(res.status === 403){ if(Number("{{ niveles.consultar|default:0 }}") === 1) location.reload(); return false; }
+    if(res.ok && Number("{{ niveles.consultar|default:0 }}") === 0){ location.reload(); return false; }
+    if(!res.ok) return false;
+    const data = await res.json();
+    if(data.tbody_html === _htmlTickets) return false;
+    _htmlTickets = data.tbody_html;
+    document.getElementById('ticketsTbody').innerHTML = data.tbody_html;
+    const vals = document.querySelectorAll('.tk-stat-val');
+    vals[0].textContent = data.stats.total;
+    vals[1].textContent = data.stats.pendiente;
+    vals[2].textContent = data.stats.proceso;
+    vals[3].textContent = data.stats.finalizado;
+    filtrarTabla();
+    return true;
   }
-  setInterval(actualizarTickets, 5000);
+  crearSondeo(actualizarTickets);
 </script>
-<script src="{% static 'js/notificaciones.js' %}?v=2"></script>
-</body>
-</html>
+{% endblock %}
